@@ -20,6 +20,10 @@ service cloud.firestore {
       return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
     }
 
+    function isValidOrderNumber(num) {
+      return num is string && num.size() >= 5 && num.size() <= 32 && num.matches('^[A-Z0-9\\-]+$');
+    }
+
     function incoming() {
       return request.resource.data;
     }
@@ -29,7 +33,7 @@ service cloud.firestore {
     }
 
     function isOwner(userId) {
-      return isVerified() && request.auth.uid == userId;
+      return isSignedIn() && request.auth.uid == userId;
     }
 
     // Pure JWT admin check (safe inside allow list without cross-document lookups)
@@ -51,7 +55,7 @@ service cloud.firestore {
         data.uid is string && data.uid == userId && isValidId(data.uid) &&
         data.displayName is string && data.displayName.size() >= 1 && data.displayName.size() <= 100 &&
         data.email is string && data.email.size() >= 3 && data.email.size() <= 254 &&
-        data.provider is string && data.provider == 'google' &&
+        data.provider is string && data.provider in ['google', 'facebook', 'password'] &&
         data.createdAt is timestamp &&
         data.updatedAt is timestamp &&
         (!('photoURL' in data) || (data.photoURL is string && data.photoURL.size() <= 500)) &&
@@ -106,6 +110,26 @@ service cloud.firestore {
         data.itemsSummary is string && data.itemsSummary.size() >= 1 && data.itemsSummary.size() <= 2500 &&
         data.itemCount is int && data.itemCount >= 1 && data.itemCount <= 100 &&
         (data.totalLkr is int || data.totalLkr is float) && data.totalLkr >= 0 && data.totalLkr <= 100000000 &&
+        data.status is string && data.status in ['received', 'bench_testing', 'packed', 'dispatched', 'delivered', 'cancelled'] &&
+        (!('statusNote' in data) || (data.statusNote is string && data.statusNote.size() <= 240)) &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidOrderTracking(data, orderNumber) {
+      return data.keys().hasAll([
+          'orderNumber', 'orderId', 'ownerId', 'fulfillment', 'itemCount', 'status', 'createdAt', 'updatedAt'
+        ]) &&
+        data.keys().hasOnly([
+          'orderNumber', 'orderId', 'ownerId', 'fulfillment', 'deliveryRegion',
+          'itemCount', 'status', 'statusNote', 'createdAt', 'updatedAt'
+        ]) &&
+        data.orderNumber is string && data.orderNumber == orderNumber && isValidOrderNumber(data.orderNumber) &&
+        data.orderId is string && isValidId(data.orderId) &&
+        data.ownerId is string && isValidId(data.ownerId) &&
+        data.fulfillment is string && data.fulfillment in ['pickup', 'courier', 'install'] &&
+        (!('deliveryRegion' in data) || (data.deliveryRegion is string && data.deliveryRegion.size() <= 80)) &&
+        data.itemCount is int && data.itemCount >= 1 && data.itemCount <= 100 &&
         data.status is string && data.status in ['received', 'bench_testing', 'packed', 'dispatched', 'delivered', 'cancelled'] &&
         (!('statusNote' in data) || (data.statusNote is string && data.statusNote.size() <= 240)) &&
         data.createdAt is timestamp &&
@@ -212,14 +236,14 @@ service cloud.firestore {
 
     // ── /orders/{orderId} (Tracked Customer Orders & Workshop Requests) ────
     match /orders/{orderId} {
-      allow get: if isVerified() &&
+      allow get: if isSignedIn() &&
         isValidId(orderId) &&
         (existing().ownerId == request.auth.uid || isAdmin());
 
-      allow list: if isVerified() &&
+      allow list: if isSignedIn() &&
         (resource.data.ownerId == request.auth.uid || isBootstrapAdmin());
 
-      allow create: if isVerified() &&
+      allow create: if isSignedIn() &&
         isValidId(orderId) &&
         isValidOrder(incoming(), orderId) &&
         incoming().ownerId == request.auth.uid &&
@@ -228,7 +252,7 @@ service cloud.firestore {
         incoming().createdAt == request.time &&
         incoming().updatedAt == request.time;
 
-      allow update: if isVerified() &&
+      allow update: if isSignedIn() &&
         isValidId(orderId) &&
         isValidOrder(incoming(), orderId) &&
         incoming().orderId == existing().orderId &&
@@ -250,6 +274,50 @@ service cloud.firestore {
         );
 
       allow delete: if isAdmin() && isValidId(orderId);
+    }
+
+    // ── /orderTracking/{orderNumber} (Public Zero-PII Live Order Status) ───
+    match /orderTracking/{orderNumber} {
+      allow get: if isValidOrderNumber(orderNumber);
+      allow list: if isBootstrapAdmin();
+
+      allow create: if isSignedIn() &&
+        isValidOrderNumber(orderNumber) &&
+        isValidOrderTracking(incoming(), orderNumber) &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time &&
+        existsAfter(/databases/$(database)/documents/orders/$(incoming().orderId)) &&
+        (
+          isAdmin() ||
+          (
+            incoming().ownerId == request.auth.uid &&
+            incoming().status == 'received' &&
+            (!('statusNote' in incoming()) || incoming().statusNote == '')
+          )
+        );
+
+      allow update: if isSignedIn() &&
+        isValidOrderNumber(orderNumber) &&
+        isValidOrderTracking(incoming(), orderNumber) &&
+        incoming().orderNumber == existing().orderNumber &&
+        incoming().orderId == existing().orderId &&
+        incoming().ownerId == existing().ownerId &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedAt == request.time &&
+        (
+          (
+            isAdmin() &&
+            incoming().diff(existing()).affectedKeys().hasOnly(['status', 'statusNote', 'updatedAt'])
+          ) ||
+          (
+            existing().ownerId == request.auth.uid &&
+            existing().status == 'received' &&
+            incoming().status == 'cancelled' &&
+            incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt'])
+          )
+        );
+
+      allow delete: if isAdmin() && isValidOrderNumber(orderNumber);
     }
   }
 }

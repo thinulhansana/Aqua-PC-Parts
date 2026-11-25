@@ -2,7 +2,13 @@ import { initializeApp } from "firebase/app";
 import {
   getAuth,
   GoogleAuthProvider,
+  FacebookAuthProvider,
   signInWithPopup,
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  updateProfile,
+  sendPasswordResetEmail,
+  sendEmailVerification,
   signOut as firebaseSignOut,
   onAuthStateChanged,
 } from "firebase/auth";
@@ -14,6 +20,7 @@ import {
   setDoc,
   updateDoc,
   deleteDoc,
+  writeBatch,
   collection,
   query,
   where,
@@ -27,6 +34,8 @@ const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
 const auth = getAuth(app);
 const googleProvider = new GoogleAuthProvider();
 googleProvider.setCustomParameters({ prompt: "select_account" });
+const facebookProvider = new FacebookAuthProvider();
+facebookProvider.addScope("email");
 
 const ADMIN_EMAIL = "thinulhansana0411@gmail.com";
 
@@ -90,17 +99,57 @@ const LIMITS = {
   orderNoteMax: 240,
   stockNoteMax: 120,
   skuPattern: /^[a-zA-Z0-9_\-]+$/,
+  orderNumberPattern: /^[A-Z0-9\-]{5,32}$/,
   validFulfillments: new Set(["pickup", "courier", "install"]),
   validStatuses: ["received", "bench_testing", "packed", "dispatched", "delivered", "cancelled"],
 };
 
 const ORDER_STAGES = [
-  { key: "received", label: "Received", icon: "receipt_long" },
-  { key: "bench_testing", label: "Bench Test", icon: "science" },
-  { key: "packed", label: "ESD Packed", icon: "inventory_2" },
-  { key: "dispatched", label: "Dispatched", icon: "local_shipping" },
-  { key: "delivered", label: "Delivered", icon: "verified" },
+  {
+    key: "received",
+    label: "Order Received",
+    shortLabel: "Received",
+    icon: "receipt_long",
+    desc: "Logged at our Embilipitiya hardware desk and assigned to a technician.",
+  },
+  {
+    key: "bench_testing",
+    label: "In Bench-Test",
+    shortLabel: "In Bench-Test",
+    icon: "science",
+    desc: "Running FurMark, thermal, voltage & stability diagnostics in the lab.",
+  },
+  {
+    key: "packed",
+    label: "Packed",
+    shortLabel: "Packed",
+    icon: "inventory_2",
+    desc: "Lab verified and sealed in anti-static ESD packaging with warranty slip.",
+  },
+  {
+    key: "dispatched",
+    label: "With Courier",
+    shortLabel: "With Courier",
+    icon: "local_shipping",
+    desc: "Handed over to insured island-wide courier (or staged for showroom pickup).",
+  },
+  {
+    key: "delivered",
+    label: "Delivered",
+    shortLabel: "Delivered",
+    icon: "verified",
+    desc: "Handed over to customer. Official Aqua PC Parts testing warranty active.",
+  },
 ];
+
+const STATUS_LABELS = {
+  received: "Order Received",
+  bench_testing: "In Bench-Test",
+  packed: "Packed",
+  dispatched: "With Courier",
+  delivered: "Delivered",
+  cancelled: "Cancelled",
+};
 
 const FULFILL_LABELS = {
   pickup: "Embilipitiya Showroom Pickup",
@@ -125,13 +174,20 @@ const state = {
   inventoryUnsub: null,
   modalOpen: false,
   menuOpen: false,
-  authMode: "signin", // "signin" | "register"
+  authMode: "signin", // "signin" | "register" | "reset"
   portalTab: "orders", // "profile" | "quotes" | "orders" | "admin"
   orderFulfillment: "pickup",
   busy: false,
   errorMsg: "",
   successMsg: "",
   invoiceOrder: null,
+  trackOpen: false,
+  trackQuery: "",
+  trackLoading: false,
+  trackError: "",
+  trackResult: null,
+  trackNotFound: false,
+  trackUnsub: null,
 };
 
 function isAdminUser() {
@@ -403,6 +459,35 @@ function readLocalCartSnapshot() {
   return { items, totalLkr, fulfillment };
 }
 
+function detectUserProvider(user) {
+  if (user && Array.isArray(user.providerData)) {
+    if (user.providerData.some((p) => p && p.providerId === "facebook.com")) {
+      return "facebook";
+    }
+    if (user.providerData.some((p) => p && p.providerId === "google.com")) {
+      return "google";
+    }
+  }
+  return "password";
+}
+
+function getProviderBadgeLabel(user, isPortal) {
+  if (isAdminUser()) {
+    return isPortal ? "VERIFIED STORE ADMIN · AQUA LAB" : "VERIFIED STORE ADMIN";
+  }
+  const prov = detectUserProvider(user);
+  if (prov === "facebook") {
+    return isPortal ? "FACEBOOK VERIFIED · AQUA MEMBER" : "FACEBOOK VERIFIED";
+  }
+  if (prov === "google") {
+    return isPortal ? "GOOGLE VERIFIED · AQUA MEMBER" : "GOOGLE VERIFIED";
+  }
+  if (user && user.emailVerified) {
+    return isPortal ? "EMAIL VERIFIED · AQUA MEMBER" : "EMAIL VERIFIED";
+  }
+  return isPortal ? "AQUA PC PARTS MEMBER" : "AQUA MEMBER";
+}
+
 // ───────── Profile, Quotes & Tracked Orders Firestore Actions ─────────
 async function syncUserProfile(user) {
   const path = "users/" + user.uid;
@@ -415,13 +500,14 @@ async function syncUserProfile(user) {
         .slice(0, LIMITS.displayNameMax) || "Aqua Member";
     const email = String(user.email || "member@aquapcparts.lk").trim().slice(0, LIMITS.emailMax);
     const photoURL = user.photoURL ? String(user.photoURL).slice(0, LIMITS.photoURLMax) : "";
+    const provider = detectUserProvider(user);
 
     if (!snap.exists()) {
       const payload = {
         uid: user.uid,
         displayName,
         email,
-        provider: "google",
+        provider,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
       };
@@ -434,7 +520,7 @@ async function syncUserProfile(user) {
         photoURL,
         phone: "",
         city: "",
-        provider: "google",
+        provider,
       };
     } else {
       const data = snap.data();
@@ -445,7 +531,7 @@ async function syncUserProfile(user) {
         photoURL: data.photoURL || photoURL,
         phone: data.phone || "",
         city: data.city || "",
-        provider: data.provider || "google",
+        provider: data.provider || provider,
       };
     }
   } catch (error) {
@@ -590,6 +676,178 @@ async function signInWithGoogle() {
   }
 }
 
+async function signInWithFacebook() {
+  if (state.busy) return;
+  state.busy = true;
+  state.errorMsg = "";
+  state.successMsg = "";
+  renderModalContent();
+
+  try {
+    const result = await signInWithPopup(auth, facebookProvider);
+    const user = result.user;
+    await syncUserProfile(user);
+    state.successMsg =
+      state.authMode === "register"
+        ? "Facebook account connected! Syncing your Aqua PC Parts profile & orders..."
+        : "Welcome back! Signed in with Facebook.";
+    state.busy = false;
+    renderHeaderSlot();
+    renderModalContent();
+    showPageToast("Signed in as " + getFirstName(user, state.profile));
+    setTimeout(() => {
+      if (state.user) {
+        state.successMsg = "";
+        renderModalContent();
+      }
+    }, 1400);
+  } catch (error) {
+    state.busy = false;
+    const code = error && error.code ? String(error.code) : "";
+    if (code === "auth/popup-closed-by-user" || code === "auth/cancelled-popup-request") {
+      state.errorMsg = "Facebook sign-in popup was closed. Click Continue with Facebook to try again.";
+    } else if (code === "auth/popup-blocked") {
+      state.errorMsg = "Browser blocked the Facebook sign-in popup. Please allow popups for this site.";
+    } else if (code === "auth/operation-not-allowed") {
+      state.errorMsg =
+        "Facebook Login is not yet enabled in Firebase Console (Authentication → Sign-in method → Facebook).";
+    } else if (code === "auth/account-exists-with-different-credential") {
+      state.errorMsg =
+        "An account already exists with this email address using Google or Email & Password. Please sign in with that method instead.";
+    } else {
+      state.errorMsg = "Unable to complete Facebook sign-in. Please try again.";
+    }
+    renderModalContent();
+  }
+}
+
+function mapEmailAuthError(error) {
+  const code = error && error.code ? String(error.code) : "";
+  if (code === "auth/operation-not-allowed") {
+    return "Email & Password sign-in is not yet enabled in Firebase Console (Authentication → Sign-in method → Email/Password).";
+  }
+  if (code === "auth/invalid-credential" || code === "auth/wrong-password" || code === "auth/user-not-found") {
+    return "Invalid email or password. Please check your credentials or reset your password.";
+  }
+  if (code === "auth/email-already-in-use") {
+    return "An account with this email already exists. Switch to Sign In or use Google Sign-In.";
+  }
+  if (code === "auth/weak-password") {
+    return "Password must be at least 6 characters long.";
+  }
+  if (code === "auth/invalid-email") {
+    return "Please enter a valid email address.";
+  }
+  if (code === "auth/too-many-requests") {
+    return "Too many attempts. Please wait a moment and try again.";
+  }
+  return "Authentication failed. Please try again.";
+}
+
+async function signInWithEmail(emailRaw, passwordRaw) {
+  if (state.busy) return;
+  const email = String(emailRaw || "").trim();
+  const password = String(passwordRaw || "");
+  if (!email || !password) {
+    state.errorMsg = "Please enter both your email address and password.";
+    renderModalContent();
+    return;
+  }
+
+  state.busy = true;
+  state.errorMsg = "";
+  state.successMsg = "";
+  renderModalContent();
+
+  try {
+    const cred = await signInWithEmailAndPassword(auth, email, password);
+    await syncUserProfile(cred.user);
+    state.busy = false;
+    state.successMsg = "Welcome back! Your Aqua session is synced.";
+    renderHeaderSlot();
+    renderModalContent();
+    showPageToast("Signed in as " + getFirstName(cred.user, state.profile));
+  } catch (error) {
+    state.busy = false;
+    state.errorMsg = mapEmailAuthError(error);
+    renderModalContent();
+  }
+}
+
+async function registerWithEmail(nameRaw, emailRaw, passwordRaw) {
+  if (state.busy) return;
+  const displayName = String(nameRaw || "").trim().slice(0, LIMITS.displayNameMax);
+  const email = String(emailRaw || "").trim();
+  const password = String(passwordRaw || "");
+
+  if (!displayName) {
+    state.errorMsg = "Please enter your full name to create an account.";
+    renderModalContent();
+    return;
+  }
+  if (!email || !email.includes("@")) {
+    state.errorMsg = "Please enter a valid email address.";
+    renderModalContent();
+    return;
+  }
+  if (password.length < 6) {
+    state.errorMsg = "Please choose a password with at least 6 characters.";
+    renderModalContent();
+    return;
+  }
+
+  state.busy = true;
+  state.errorMsg = "";
+  state.successMsg = "";
+  renderModalContent();
+
+  try {
+    const cred = await createUserWithEmailAndPassword(auth, email, password);
+    try {
+      await updateProfile(cred.user, { displayName });
+    } catch (_) {}
+    try {
+      await sendEmailVerification(cred.user);
+    } catch (_) {}
+    await syncUserProfile(cred.user);
+    state.busy = false;
+    state.successMsg = "Account created! A verification email has been sent to " + email + ".";
+    renderHeaderSlot();
+    renderModalContent();
+    showPageToast("Welcome to Aqua PC Parts, " + getFirstName(cred.user, state.profile) + "!");
+  } catch (error) {
+    state.busy = false;
+    state.errorMsg = mapEmailAuthError(error);
+    renderModalContent();
+  }
+}
+
+async function resetPasswordWithEmail(emailRaw) {
+  if (state.busy) return;
+  const email = String(emailRaw || "").trim();
+  if (!email || !email.includes("@")) {
+    state.errorMsg = "Enter your account email address to receive a password reset link.";
+    renderModalContent();
+    return;
+  }
+
+  state.busy = true;
+  state.errorMsg = "";
+  state.successMsg = "";
+  renderModalContent();
+
+  try {
+    await sendPasswordResetEmail(auth, email);
+    state.busy = false;
+    state.successMsg = "Password reset link sent to " + email + ". Check your inbox or spam folder.";
+    renderModalContent();
+  } catch (error) {
+    state.busy = false;
+    state.errorMsg = mapEmailAuthError(error);
+    renderModalContent();
+  }
+}
+
 async function handleSignOut() {
   try {
     detachQuotesListener();
@@ -729,6 +987,53 @@ async function saveCurrentCartToCloud(customTitleRaw) {
   }
 }
 
+async function saveCustomQuote(opts) {
+  if (!state.user) {
+    openModal("signin");
+    return false;
+  }
+  const title =
+    String((opts && opts.title) || "Custom PC Hardware Quote")
+      .trim()
+      .slice(0, LIMITS.quoteTitleMax) || "Custom PC Hardware Quote";
+  const itemCount = Math.min(
+    LIMITS.quoteItemMax,
+    Math.max(1, Math.round(Number(opts && opts.itemCount) || 1))
+  );
+  const totalLkr = Math.min(
+    LIMITS.quoteTotalMax,
+    Math.max(0, Math.round(Number(opts && opts.totalLkr) || 0))
+  );
+  const summary =
+    String((opts && opts.summary) || title)
+      .trim()
+      .slice(0, LIMITS.quoteSummaryMax) || title;
+  const rawFulfill = String((opts && opts.fulfillment) || "pickup");
+  const fulfillment = LIMITS.validFulfillments.has(rawFulfill) ? rawFulfill : "pickup";
+
+  const quoteId = "q_" + Date.now() + "_" + Math.random().toString(36).slice(2, 7);
+  const path = "users/" + state.user.uid + "/savedQuotes/" + quoteId;
+
+  try {
+    if (!state.profile) await syncUserProfile(state.user);
+    await setDoc(doc(db, "users", state.user.uid, "savedQuotes", quoteId), {
+      ownerId: state.user.uid,
+      title,
+      itemCount,
+      totalLkr,
+      summary,
+      fulfillment,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    });
+    showPageToast("Quote saved to your Aqua account");
+    return true;
+  } catch (error) {
+    handleFirestoreError(error, OperationType.CREATE, path);
+    return false;
+  }
+}
+
 async function deleteSavedQuote(quoteId) {
   if (!state.user || !quoteId || state.busy) return;
   const path = "users/" + state.user.uid + "/savedQuotes/" + quoteId;
@@ -837,6 +1142,20 @@ async function createTrackedOrder(sourceQuote) {
     payload.deliveryCity = deliveryCity;
   }
 
+  const trackingPayload = {
+    orderNumber,
+    orderId,
+    ownerId: state.user.uid,
+    fulfillment: payload.fulfillment,
+    itemCount,
+    status: "received",
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  };
+  if (deliveryCity) {
+    trackingPayload.deliveryRegion = deliveryCity;
+  }
+
   state.busy = true;
   state.errorMsg = "";
   state.successMsg = "";
@@ -844,10 +1163,13 @@ async function createTrackedOrder(sourceQuote) {
 
   const path = "orders/" + orderId;
   try {
-    await setDoc(doc(db, "orders", orderId), payload);
+    const batch = writeBatch(db);
+    batch.set(doc(db, "orders", orderId), payload);
+    batch.set(doc(db, "orderTracking", orderNumber), trackingPayload);
+    await batch.commit();
     state.busy = false;
     state.portalTab = "orders";
-    state.successMsg = "Order " + orderNumber + " submitted! Track live workshop stages below.";
+    state.successMsg = "Order " + orderNumber + " submitted! Share or enter this order number in Track Order anytime.";
     renderModalContent();
     showPageToast("Tracked order " + orderNumber + " placed!");
   } catch (error) {
@@ -868,10 +1190,28 @@ async function cancelMyOrder(orderId) {
   state.errorMsg = "";
   renderModalContent();
   try {
-    await updateDoc(doc(db, "orders", orderId), {
+    const localOrder = state.orders.find((o) => o.id === orderId || o.orderId === orderId);
+    const orderNumber = localOrder && localOrder.orderNumber ? String(localOrder.orderNumber).toUpperCase() : "";
+    let hasTrackingDoc = false;
+    if (orderNumber && LIMITS.orderNumberPattern.test(orderNumber)) {
+      try {
+        const trackSnap = await getDoc(doc(db, "orderTracking", orderNumber));
+        hasTrackingDoc = trackSnap.exists();
+      } catch (_) {}
+    }
+
+    const batch = writeBatch(db);
+    batch.update(doc(db, "orders", orderId), {
       status: "cancelled",
       updatedAt: serverTimestamp(),
     });
+    if (hasTrackingDoc) {
+      batch.update(doc(db, "orderTracking", orderNumber), {
+        status: "cancelled",
+        updatedAt: serverTimestamp(),
+      });
+    }
+    await batch.commit();
     state.busy = false;
     state.successMsg = "Order cancelled.";
     renderModalContent();
@@ -897,13 +1237,53 @@ async function adminUpdateOrderStatus(orderId, nextStatus, statusNoteRaw) {
   state.successMsg = "";
   renderModalContent();
   try {
-    await updateDoc(doc(db, "orders", orderId), {
+    const orderDoc =
+      state.adminOrders.find((o) => o.id === orderId || o.orderId === orderId) ||
+      state.orders.find((o) => o.id === orderId || o.orderId === orderId);
+    const orderNumber = orderDoc && orderDoc.orderNumber ? String(orderDoc.orderNumber).toUpperCase() : "";
+    const batch = writeBatch(db);
+    batch.update(doc(db, "orders", orderId), {
       status: nextStatus,
       statusNote,
       updatedAt: serverTimestamp(),
     });
+
+    if (orderNumber && LIMITS.orderNumberPattern.test(orderNumber)) {
+      const trackRef = doc(db, "orderTracking", orderNumber);
+      let trackExists = false;
+      try {
+        const snap = await getDoc(trackRef);
+        trackExists = snap.exists();
+      } catch (_) {}
+
+      if (trackExists) {
+        batch.update(trackRef, {
+          status: nextStatus,
+          statusNote,
+          updatedAt: serverTimestamp(),
+        });
+      } else if (orderDoc && orderDoc.ownerId) {
+        const backfill = {
+          orderNumber,
+          orderId,
+          ownerId: orderDoc.ownerId,
+          fulfillment: LIMITS.validFulfillments.has(orderDoc.fulfillment) ? orderDoc.fulfillment : "pickup",
+          itemCount: Math.min(LIMITS.quoteItemMax, Math.max(1, Math.round(Number(orderDoc.itemCount) || 1))),
+          status: nextStatus,
+          statusNote,
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+        };
+        if (orderDoc.deliveryCity) {
+          backfill.deliveryRegion = String(orderDoc.deliveryCity).trim().slice(0, LIMITS.cityMax);
+        }
+        batch.set(trackRef, backfill);
+      }
+    }
+
+    await batch.commit();
     state.busy = false;
-    state.successMsg = "Order status updated to " + nextStatus.replace("_", " ").toUpperCase() + ".";
+    state.successMsg = "Order status updated to " + (STATUS_LABELS[nextStatus] || nextStatus) + ".";
     renderModalContent();
     showPageToast("Order updated live");
   } catch (error) {
@@ -1053,6 +1433,14 @@ function googleGIcon() {
   );
 }
 
+function facebookFIcon() {
+  return (
+    '<svg class="aqua-facebook-icon" viewBox="0 0 24 24" aria-hidden="true">' +
+    '<path fill="currentColor" d="M24 12.073C24 5.405 18.627 0 12 0S0 5.405 0 12.073c0 6.026 4.388 11.022 10.125 11.927v-8.437H7.078v-3.49h3.047V9.413c0-3.025 1.792-4.697 4.533-4.697 1.312 0 2.686.236 2.686.236v2.971H15.83c-1.491 0-1.956.931-1.956 1.886v2.264h3.328l-.532 3.49h-2.796V24C19.612 23.095 24 18.099 24 12.073Z"/>' +
+    "</svg>"
+  );
+}
+
 // ───────── DOM Mounting & Rendering ─────────
 function ensureHeaderSlot() {
   let slot = document.getElementById("aqua-auth-slot");
@@ -1060,7 +1448,8 @@ function ensureHeaderSlot() {
 
   const neActions = document.querySelector(".ne-header-actions");
   const stdActions = document.querySelector(".header-actions");
-  const container = neActions || stdActions;
+  const s3dActions = document.querySelector(".s3d-corner-right");
+  const container = neActions || stdActions || s3dActions;
   if (!container) return null;
 
   slot = document.createElement("div");
@@ -1068,6 +1457,24 @@ function ensureHeaderSlot() {
   slot.className = neActions ? "aqua-auth-slot is-ne" : "aqua-auth-slot is-std";
 
   const cartBtn = container.querySelector("#cart-open");
+  if (!document.getElementById("aqua-track-open-btn")) {
+    const trackBtn = document.createElement("button");
+    trackBtn.type = "button";
+    trackBtn.id = "aqua-track-open-btn";
+    trackBtn.className = neActions ? "aqua-track-nav-btn is-ne" : "aqua-track-nav-btn is-std";
+    trackBtn.setAttribute("aria-label", "Track your order status");
+    trackBtn.title = "Track your Aqua PC Parts order status";
+    trackBtn.innerHTML =
+      '<span class="material-symbols-outlined">local_shipping</span>' +
+      '<span class="aqua-track-btn-label">Track Order</span>';
+    trackBtn.addEventListener("click", () => openTrackOrderModal());
+    if (cartBtn) {
+      container.insertBefore(trackBtn, cartBtn);
+    } else {
+      container.appendChild(trackBtn);
+    }
+  }
+
   if (cartBtn) {
     container.insertBefore(slot, cartBtn);
   } else {
@@ -1075,11 +1482,25 @@ function ensureHeaderSlot() {
   }
 
   const offcanvasLinks = document.querySelector(".ne-offcanvas-quicklinks");
+  if (offcanvasLinks && !document.getElementById("aqua-mobile-track-link")) {
+    const trackLink = document.createElement("a");
+    trackLink.id = "aqua-mobile-track-link";
+    trackLink.href = "#track-order";
+    trackLink.innerHTML = "<span>Track Order by Number</span>";
+    trackLink.addEventListener("click", (e) => {
+      e.preventDefault();
+      const closeBtn = document.getElementById("offcanvas-close");
+      if (closeBtn) closeBtn.click();
+      openTrackOrderModal();
+    });
+    offcanvasLinks.insertBefore(trackLink, offcanvasLinks.firstChild);
+  }
+
   if (offcanvasLinks && !document.getElementById("aqua-mobile-auth-link")) {
     const a = document.createElement("a");
     a.id = "aqua-mobile-auth-link";
     a.href = "#account";
-    a.innerHTML = "<span>🔐 Client Sign In / Order Tracker</span>";
+    a.innerHTML = "<span>Client Sign In / Portal</span>";
     a.addEventListener("click", (e) => {
       e.preventDefault();
       const closeBtn = document.getElementById("offcanvas-close");
@@ -1141,14 +1562,18 @@ function renderHeaderSlot() {
     "</button>" +
     '<div class="aqua-user-menu' + (state.menuOpen ? " open" : "") + '" id="aqua-user-dropdown" role="menu">' +
     '<div class="aqua-user-menu-head">' +
-    '<span class="aqua-verified-tag">' + (isAdminUser() ? "VERIFIED STORE ADMIN" : "GOOGLE VERIFIED") + "</span>" +
+    '<span class="aqua-verified-tag">' + getProviderBadgeLabel(state.user, false) + "</span>" +
     '<strong class="aqua-menu-fullname">' + esc(fullName) + "</strong>" +
     '<span class="aqua-menu-email">' + esc(email) + "</span>" +
     "</div>" +
     '<button type="button" class="aqua-menu-item" data-aqua-action="portal-orders" role="menuitem">' +
-    '<span class="material-symbols-outlined">local_shipping</span>' +
+    '<span class="material-symbols-outlined">receipt_long</span>' +
     "<span>Orders &amp; Invoices</span>" +
     orderBadge +
+    "</button>" +
+    '<button type="button" class="aqua-menu-item" data-aqua-action="track-order" role="menuitem">' +
+    '<span class="material-symbols-outlined">local_shipping</span>' +
+    "<span>Track by Order #</span>" +
     "</button>" +
     '<button type="button" class="aqua-menu-item" data-aqua-action="portal-quotes" role="menuitem">' +
     '<span class="material-symbols-outlined">bookmark</span>' +
@@ -1190,6 +1615,7 @@ function renderHeaderSlot() {
       else if (act === "portal-quotes") openModal("quotes");
       else if (act === "portal-orders") openModal("orders");
       else if (act === "portal-admin") openModal("admin");
+      else if (act === "track-order") openTrackOrderModal();
       else if (act === "signout") handleSignOut();
     });
   });
@@ -1226,7 +1652,7 @@ function openModal(modeOrTab) {
   state.menuOpen = false;
   state.errorMsg = "";
   state.successMsg = "";
-  if (modeOrTab === "signin" || modeOrTab === "register") {
+  if (modeOrTab === "signin" || modeOrTab === "register" || modeOrTab === "reset") {
     state.authMode = modeOrTab;
   } else if (["quotes", "profile", "orders", "admin"].includes(modeOrTab)) {
     state.portalTab = modeOrTab;
@@ -1263,7 +1689,7 @@ function renderOrderProgressBar(status) {
         st.icon +
         "</span></span>" +
         "<small>" +
-        st.label +
+        esc(st.shortLabel || st.label) +
         "</small>" +
         "</div>"
       );
@@ -1289,6 +1715,79 @@ function renderModalContent() {
 
   if (!state.user) {
     const isReg = state.authMode === "register";
+    const isReset = state.authMode === "reset";
+    const headingTitle = isReset
+      ? "Reset Your Password"
+      : isReg
+        ? "Create Aqua Account"
+        : "Sign In to Your Account";
+    const headingSub = isReset
+      ? "Enter the email associated with your Aqua PC Parts account and we'll send a secure password reset link."
+      : isReg
+        ? "Sign up with Email, Google, or Facebook to track live bench-test orders, print LKR invoices, and sync PC quotes."
+        : "Sign in with Email, Google, or Facebook to track live workshop orders, print warranty invoices, and sync quotes.";
+
+    const emailFormHtml = isReset
+      ? '<form class="aqua-email-form" id="aqua-reset-form">' +
+        '<div class="aqua-field">' +
+        '<label for="aqua-auth-email">Account Email Address</label>' +
+        '<input type="email" id="aqua-auth-email" autocomplete="email" placeholder="you@example.com" required />' +
+        "</div>" +
+        '<button type="submit" class="aqua-submit-btn"' +
+        (state.busy ? " disabled" : "") +
+        ">" +
+        '<span class="material-symbols-outlined">mail</span>' +
+        "<span>" + (state.busy ? "Sending Reset Link..." : "Send Password Reset Link") + "</span>" +
+        "</button>" +
+        '<div class="aqua-forgot-row">' +
+        '<button type="button" class="aqua-text-link" data-auth-mode="signin">← Back to Sign In</button>' +
+        "</div>" +
+        "</form>"
+      : '<form class="aqua-email-form" id="aqua-email-form">' +
+        (isReg
+          ? '<div class="aqua-field">' +
+            '<label for="aqua-auth-name">Full Name</label>' +
+            '<input type="text" id="aqua-auth-name" autocomplete="name" maxlength="100" placeholder="e.g. Kasun Perera" required />' +
+            "</div>"
+          : "") +
+        '<div class="aqua-field">' +
+        '<label for="aqua-auth-email">Email Address</label>' +
+        '<input type="email" id="aqua-auth-email" autocomplete="email" maxlength="254" placeholder="you@example.com" required />' +
+        "</div>" +
+        '<div class="aqua-field">' +
+        '<div class="aqua-label-row">' +
+        '<label for="aqua-auth-pass">Password</label>' +
+        (!isReg
+          ? '<button type="button" class="aqua-text-link" data-auth-mode="reset">Forgot password?</button>'
+          : '<span class="aqua-field-hint">Min. 6 characters</span>') +
+        "</div>" +
+        '<div class="aqua-pass-wrap">' +
+        '<input type="password" id="aqua-auth-pass" autocomplete="' +
+        (isReg ? "new-password" : "current-password") +
+        '" minlength="6" placeholder="' +
+        (isReg ? "Create a password" : "Enter your password") +
+        '" required />' +
+        '<button type="button" class="aqua-pass-toggle" id="aqua-pass-toggle" aria-label="Show or hide password">' +
+        '<span class="material-symbols-outlined">visibility</span>' +
+        "</button>" +
+        "</div>" +
+        "</div>" +
+        '<button type="submit" class="aqua-submit-btn"' +
+        (state.busy ? " disabled" : "") +
+        ">" +
+        '<span class="material-symbols-outlined">' + (isReg ? "person_add" : "login") + "</span>" +
+        "<span>" +
+        (state.busy
+          ? isReg
+            ? "Creating Account..."
+            : "Signing In..."
+          : isReg
+            ? "Create Account with Email"
+            : "Sign In with Email") +
+        "</span>" +
+        "</button>" +
+        "</form>";
+
     host.innerHTML =
       '<div class="aqua-auth-card">' +
       '<button type="button" class="aqua-auth-close" id="aqua-modal-close" aria-label="Close login panel">' +
@@ -1299,22 +1798,16 @@ function renderModalContent() {
       '<img src="assets/logo.jpg" alt="Aqua PC Solutions" />' +
       "<div>" +
       '<span class="aqua-auth-eyebrow">AQUA LAB CLIENT ACCESS</span>' +
-      '<h2 id="aqua-auth-modal-title">' +
-      (isReg ? "Create Aqua Account" : "Sign In to Your Account") +
-      "</h2>" +
+      '<h2 id="aqua-auth-modal-title">' + headingTitle + "</h2>" +
       "</div>" +
       "</div>" +
-      '<p class="aqua-auth-sub">' +
-      (isReg
-        ? "Join Aqua PC Parts & Aqua PC Solutions to track live bench-test & courier orders, print branded LKR invoices, and sync quotes across devices."
-        : "Track live workshop orders, print official LKR warranty invoices, and sync your PC build quotes across devices.") +
-      "</p>" +
+      '<p class="aqua-auth-sub">' + headingSub + "</p>" +
       "</div>" +
       '<div class="aqua-mode-tabs" role="tablist" aria-label="Authentication mode">' +
       '<button type="button" role="tab" aria-selected="' +
-      (!isReg ? "true" : "false") +
+      (!isReg && !isReset ? "true" : "false") +
       '" class="aqua-mode-tab' +
-      (!isReg ? " active" : "") +
+      (!isReg && !isReset ? " active" : "") +
       '" data-auth-mode="signin">' +
       '<span class="material-symbols-outlined">login</span><span>Sign In</span>' +
       "</button>" +
@@ -1327,14 +1820,26 @@ function renderModalContent() {
       "</button>" +
       "</div>" +
       feedbackHtml +
+      emailFormHtml +
+      '<div class="aqua-auth-divider"><span>OR CONTINUE WITH</span></div>' +
+      '<div class="aqua-social-stack">' +
       '<button type="button" class="aqua-google-btn" id="aqua-google-signin-btn"' +
       (state.busy ? " disabled" : "") +
       ">" +
       googleGIcon() +
       "<span>" +
-      (state.busy ? "Connecting to Google..." : isReg ? "Sign Up with Google" : "Continue with Google") +
+      (state.busy ? "Connecting..." : isReg ? "Sign Up with Google" : "Continue with Google") +
       "</span>" +
       "</button>" +
+      '<button type="button" class="aqua-facebook-btn" id="aqua-facebook-signin-btn"' +
+      (state.busy ? " disabled" : "") +
+      ">" +
+      facebookFIcon() +
+      "<span>" +
+      (state.busy ? "Connecting..." : isReg ? "Sign Up with Facebook" : "Continue with Facebook") +
+      "</span>" +
+      "</button>" +
+      "</div>" +
       '<div class="aqua-auth-divider"><span>AQUA MEMBER PERKS</span></div>' +
       '<div class="aqua-perks-grid">' +
       '<div class="aqua-perk"><span class="material-symbols-outlined">local_shipping</span><div><strong>Live Tracking</strong><small>Bench test to courier</small></div></div>' +
@@ -1360,8 +1865,46 @@ function renderModalContent() {
       });
     });
 
+    const passToggle = host.querySelector("#aqua-pass-toggle");
+    const passInput = host.querySelector("#aqua-auth-pass");
+    if (passToggle && passInput) {
+      passToggle.addEventListener("click", () => {
+        const show = passInput.type === "password";
+        passInput.type = show ? "text" : "password";
+        const icon = passToggle.querySelector(".material-symbols-outlined");
+        if (icon) icon.textContent = show ? "visibility_off" : "visibility";
+      });
+    }
+
+    const emailForm = host.querySelector("#aqua-email-form");
+    if (emailForm) {
+      emailForm.addEventListener("submit", (e) => {
+        e.preventDefault();
+        const emailVal = (host.querySelector("#aqua-auth-email") || {}).value;
+        const passVal = (host.querySelector("#aqua-auth-pass") || {}).value;
+        if (isReg) {
+          const nameVal = (host.querySelector("#aqua-auth-name") || {}).value;
+          registerWithEmail(nameVal, emailVal, passVal);
+        } else {
+          signInWithEmail(emailVal, passVal);
+        }
+      });
+    }
+
+    const resetForm = host.querySelector("#aqua-reset-form");
+    if (resetForm) {
+      resetForm.addEventListener("submit", (e) => {
+        e.preventDefault();
+        const emailVal = (host.querySelector("#aqua-auth-email") || {}).value;
+        resetPasswordWithEmail(emailVal);
+      });
+    }
+
     const gBtn = host.querySelector("#aqua-google-signin-btn");
     if (gBtn) gBtn.addEventListener("click", signInWithGoogle);
+
+    const fbBtn = host.querySelector("#aqua-facebook-signin-btn");
+    if (fbBtn) fbBtn.addEventListener("click", signInWithFacebook);
     return;
   }
 
@@ -1519,7 +2062,7 @@ function renderModalContent() {
                 LIMITS.validStatuses
                   .map(
                     (st) =>
-                      '<option value="' + st + '"' + (o.status === st ? " selected" : "") + ">" + st.replace("_", " ").toUpperCase() + "</option>"
+                      '<option value="' + st + '"' + (o.status === st ? " selected" : "") + ">" + esc(STATUS_LABELS[st] || st) + "</option>"
                   )
                   .join("") +
                 "</select>" +
@@ -1551,7 +2094,7 @@ function renderModalContent() {
       ? '<img class="aqua-portal-avatar" src="' + esc(photo) + '" alt="" referrerpolicy="no-referrer" />'
       : '<span class="aqua-portal-avatar is-initials">' + esc(initials) + "</span>") +
     '<div class="aqua-portal-id">' +
-    '<span class="aqua-verified-tag">' + (admin ? "VERIFIED STORE ADMIN · AQUA LAB" : "GOOGLE VERIFIED · AQUA MEMBER") + "</span>" +
+    '<span class="aqua-verified-tag">' + getProviderBadgeLabel(state.user, true) + "</span>" +
     '<h2 id="aqua-auth-modal-title">' + esc(fullName) + "</h2>" +
     "<p>" + esc(email) + "</p>" +
     "</div>" +
@@ -1700,8 +2243,478 @@ function renderModalContent() {
   });
 }
 
-// Global click-outside and ESC handlers
+// ───────── Public 'Track Order' Modal (Zero-PII Live Lookup) ─────────
+function detachTrackListener() {
+  if (typeof state.trackUnsub === "function") {
+    state.trackUnsub();
+    state.trackUnsub = null;
+  }
+}
+
+function ensureTrackModalHost() {
+  let host = document.getElementById("aqua-track-modal");
+  if (host) return host;
+
+  host = document.createElement("div");
+  host.id = "aqua-track-modal";
+  host.className = "aqua-auth-overlay aqua-track-overlay";
+  host.setAttribute("role", "dialog");
+  host.setAttribute("aria-modal", "true");
+  host.setAttribute("aria-labelledby", "aqua-track-title");
+  host.hidden = true;
+
+  host.addEventListener("click", (e) => {
+    if (e.target === host) closeTrackOrderModal();
+  });
+
+  document.body.appendChild(host);
+  return host;
+}
+
+function syncTrackModalVisibility() {
+  const host = ensureTrackModalHost();
+  host.hidden = !state.trackOpen;
+  host.classList.toggle("open", state.trackOpen);
+  document.body.classList.toggle("aqua-modal-open", state.modalOpen || state.trackOpen);
+}
+
+function openTrackOrderModal(prefillCode) {
+  state.menuOpen = false;
+  state.trackOpen = true;
+  state.trackError = "";
+  renderHeaderSlot();
+  if (typeof prefillCode === "string" && prefillCode.trim()) {
+    const cleaned = prefillCode.trim().toUpperCase();
+    state.trackQuery = cleaned;
+    renderTrackModal();
+    syncTrackModalVisibility();
+    lookupOrderTracking(cleaned);
+    return;
+  }
+  renderTrackModal();
+  syncTrackModalVisibility();
+  setTimeout(() => {
+    const inp = document.getElementById("aqua-track-input");
+    if (inp) inp.focus();
+  }, 60);
+}
+
+function closeTrackOrderModal() {
+  detachTrackListener();
+  state.trackOpen = false;
+  state.trackLoading = false;
+  syncTrackModalVisibility();
+}
+
+function normalizeTrackingStageLabel(stageKey, fulfillment) {
+  if (stageKey === "dispatched" && fulfillment === "pickup") {
+    return "Ready for Pickup";
+  }
+  return STATUS_LABELS[stageKey] || "Order Received";
+}
+
+function getTrackingStageDescription(stageKey, fulfillment) {
+  if (stageKey === "cancelled") {
+    return "This order was cancelled prior to dispatch. Contact our workshop desk on WhatsApp if you need to reorder.";
+  }
+  if (stageKey === "dispatched" && fulfillment === "pickup") {
+    return "Your hardware is packed, warranty-sealed, and ready for collection at our Embilipitiya showroom.";
+  }
+  const found = ORDER_STAGES.find((s) => s.key === stageKey);
+  return found ? found.desc : "Checking workshop fulfillment status.";
+}
+
+function findLocalOwnedOrderByNumber(code) {
+  const target = String(code || "").toUpperCase();
+  return (
+    state.orders.find((o) => String(o.orderNumber || "").toUpperCase() === target) ||
+    state.adminOrders.find((o) => String(o.orderNumber || "").toUpperCase() === target) ||
+    null
+  );
+}
+
+function lookupOrderTracking(rawCode) {
+  const code = String(rawCode || "")
+    .trim()
+    .toUpperCase()
+    .replace(/\s+/g, "");
+  state.trackQuery = code;
+  state.trackError = "";
+  state.trackNotFound = false;
+
+  if (!code) {
+    state.trackError = "Enter your order number to check live workshop status (e.g. AQ-261125-4K9M).";
+    state.trackResult = null;
+    renderTrackModal();
+    return;
+  }
+  if (!LIMITS.orderNumberPattern.test(code)) {
+    state.trackError =
+      "Order numbers use letters, numbers, and hyphens only (e.g. AQ-261125-4K9M).";
+    state.trackResult = null;
+    renderTrackModal();
+    return;
+  }
+
+  detachTrackListener();
+  state.trackLoading = true;
+  state.trackResult = null;
+  renderTrackModal();
+
+  const path = "orderTracking/" + code;
+  state.trackUnsub = onSnapshot(
+    doc(db, "orderTracking", code),
+    (snap) => {
+      state.trackLoading = false;
+      if (snap.exists()) {
+        state.trackResult = { id: snap.id, ...snap.data() };
+        state.trackNotFound = false;
+        state.trackError = "";
+      } else {
+        // Fallback for older orders owned by the currently signed-in customer
+        const owned = findLocalOwnedOrderByNumber(code);
+        if (owned) {
+          state.trackResult = {
+            orderNumber: owned.orderNumber,
+            orderId: owned.orderId || owned.id,
+            ownerId: owned.ownerId,
+            fulfillment: owned.fulfillment || "pickup",
+            deliveryRegion: owned.deliveryCity || "",
+            itemCount: owned.itemCount || 1,
+            status: owned.status || "received",
+            statusNote: owned.statusNote || "",
+            createdAt: owned.createdAt,
+            updatedAt: owned.updatedAt,
+          };
+          state.trackNotFound = false;
+          state.trackError = "";
+        } else {
+          state.trackResult = null;
+          state.trackNotFound = true;
+        }
+      }
+      renderTrackModal();
+    },
+    (error) => {
+      state.trackLoading = false;
+      try {
+        handleFirestoreError(error, OperationType.GET, path);
+      } catch (_) {
+        state.trackError = "Unable to connect to live order tracking right now. Please try again.";
+        state.trackResult = null;
+        renderTrackModal();
+      }
+    }
+  );
+}
+
+function buildTrackWhatsAppHref(orderNumber, statusLabel) {
+  const lines = [
+    "Hello Aqua PC Parts!",
+    "I would like an update on Order #: " + orderNumber,
+    statusLabel ? "Current Status Shown: " + statusLabel : "",
+  ].filter(Boolean);
+  return "https://wa.me/" + WHATSAPP_PHONE + "?text=" + encodeURIComponent(lines.join("\n"));
+}
+
+function renderTrackTimeline(status, fulfillment) {
+  if (status === "cancelled") {
+    return (
+      '<div class="aqua-track-cancelled-box">' +
+      '<span class="material-symbols-outlined">cancel</span>' +
+      "<div>" +
+      "<strong>Order Cancelled</strong>" +
+      "<p>This order was cancelled prior to courier handover.</p>" +
+      "</div>" +
+      "</div>"
+    );
+  }
+
+  const activeIdx = Math.max(
+    0,
+    ORDER_STAGES.findIndex((s) => s.key === status)
+  );
+
+  return (
+    '<ol class="aqua-track-timeline" aria-label="Order fulfillment milestones">' +
+    ORDER_STAGES.map((stage, idx) => {
+      const isDone = idx < activeIdx;
+      const isCurrent = idx === activeIdx;
+      const stageLabel = normalizeTrackingStageLabel(stage.key, fulfillment);
+      const stageDesc =
+        stage.key === "dispatched" && fulfillment === "pickup"
+          ? "Sealed and waiting for collection at our Embilipitiya showroom."
+          : stage.desc;
+      const stateText = isDone ? "Completed" : isCurrent ? "Current Stage" : "Upcoming";
+      const cls = isDone ? "is-done" : isCurrent ? "is-current" : "is-upcoming";
+
+      return (
+        '<li class="aqua-track-step ' +
+        cls +
+        '">' +
+        '<div class="aqua-track-marker" aria-hidden="true">' +
+        '<span class="material-symbols-outlined">' +
+        (isDone ? "check" : stage.icon) +
+        "</span>" +
+        "</div>" +
+        '<div class="aqua-track-step-body">' +
+        '<div class="aqua-track-step-head">' +
+        "<strong>" + esc(stageLabel) + "</strong>" +
+        '<span class="aqua-track-step-state">' + stateText + "</span>" +
+        "</div>" +
+        "<p>" + esc(stageDesc) + "</p>" +
+        "</div>" +
+        "</li>"
+      );
+    }).join("") +
+    "</ol>"
+  );
+}
+
+function renderTrackModal() {
+  const host = ensureTrackModalHost();
+
+  const recentOrdersHtml =
+    state.user && state.orders.length > 0
+      ? '<div class="aqua-track-recent">' +
+        '<span class="aqua-track-recent-label">Your recent orders</span>' +
+        '<div class="aqua-track-recent-list">' +
+        state.orders
+          .slice(0, 4)
+          .map((o) => {
+            const num = o.orderNumber || o.orderId;
+            const active = state.trackQuery === String(num).toUpperCase();
+            return (
+              '<button type="button" class="aqua-track-recent-btn' +
+              (active ? " is-active" : "") +
+              '" data-track-pick="' +
+              esc(num) +
+              '">' +
+              '<span class="aqua-track-mono">' + esc(num) + "</span>" +
+              '<span class="aqua-track-recent-stage">' +
+              esc(normalizeTrackingStageLabel(o.status || "received", o.fulfillment)) +
+              "</span>" +
+              "</button>"
+            );
+          })
+          .join("") +
+        "</div>" +
+        "</div>"
+      : "";
+
+  let bodyHtml = "";
+
+  if (state.trackLoading) {
+    bodyHtml =
+      '<div class="aqua-track-state-box" role="status">' +
+      '<span class="material-symbols-outlined aqua-spin">progress_activity</span>' +
+      "<strong>Looking up order " + esc(state.trackQuery) + "...</strong>" +
+      "<p>Checking live Embilipitiya workshop and courier records.</p>" +
+      "</div>";
+  } else if (state.trackError) {
+    bodyHtml =
+      '<div class="aqua-alert is-error" role="alert">' +
+      '<span class="material-symbols-outlined">error</span>' +
+      "<span>" + esc(state.trackError) + "</span>" +
+      "</div>";
+  } else if (state.trackNotFound) {
+    bodyHtml =
+      '<div class="aqua-track-state-box is-not-found" role="status">' +
+      '<span class="material-symbols-outlined">search_off</span>' +
+      "<strong>No order found for " + esc(state.trackQuery) + "</strong>" +
+      "<p>Double-check the order number on your Aqua invoice or WhatsApp confirmation (format: <span class=\"aqua-track-mono\">AQ-261125-4K9M</span>).</p>" +
+      '<div class="aqua-track-state-actions">' +
+      '<a class="aqua-mini-btn is-wa" href="' +
+      esc(buildTrackWhatsAppHref(state.trackQuery, "")) +
+      '" target="_blank" rel="noopener noreferrer"><span class="material-symbols-outlined">chat</span><span>Verify on WhatsApp</span></a>' +
+      (!state.user
+        ? '<button type="button" class="aqua-mini-btn is-inv" id="aqua-track-signin-hint"><span class="material-symbols-outlined">login</span><span>Sign In to View Orders</span></button>'
+        : "") +
+      "</div>" +
+      "</div>";
+  } else if (state.trackResult) {
+    const r = state.trackResult;
+    const stageLabel = normalizeTrackingStageLabel(r.status || "received", r.fulfillment);
+    const stageDesc = getTrackingStageDescription(r.status || "received", r.fulfillment);
+    const ownedOrder = findLocalOwnedOrderByNumber(r.orderNumber);
+    const fulfillLabel = FULFILL_LABELS[r.fulfillment] || "Workshop Fulfillment";
+    const metaParts = [
+      fulfillLabel,
+      r.deliveryRegion ? r.deliveryRegion : null,
+      (r.itemCount || 1) + (Number(r.itemCount) === 1 ? " hardware item" : " hardware items"),
+      "Updated " + fmtDate(r.updatedAt || r.createdAt),
+    ].filter(Boolean);
+
+    bodyHtml =
+      '<div class="aqua-track-result">' +
+      '<div class="aqua-track-summary">' +
+      '<div class="aqua-track-summary-top">' +
+      "<div>" +
+      '<div class="aqua-track-order-row">' +
+      '<span class="aqua-track-order-code">' + esc(r.orderNumber) + "</span>" +
+      '<button type="button" class="aqua-track-copy-btn" id="aqua-track-copy-num" title="Copy order number" aria-label="Copy order number">' +
+      '<span class="material-symbols-outlined">content_copy</span>' +
+      "</button>" +
+      "</div>" +
+      '<h3 class="aqua-track-status-heading">' + esc(stageLabel) + "</h3>" +
+      "</div>" +
+      '<span class="aqua-track-live-label">Live sync</span>' +
+      "</div>" +
+      '<p class="aqua-track-status-desc">' + esc(stageDesc) + "</p>" +
+      '<div class="aqua-track-meta-line">' +
+      metaParts.map((m) => "<span>" + esc(m) + "</span>").join('<span aria-hidden="true">·</span>') +
+      "</div>" +
+      "</div>" +
+      (r.statusNote
+        ? '<div class="aqua-track-note">' +
+          '<span class="material-symbols-outlined">biotech</span>' +
+          "<div><strong>Workshop Note</strong><p>" + esc(r.statusNote) + "</p></div>" +
+          "</div>"
+        : "") +
+      renderTrackTimeline(r.status || "received", r.fulfillment) +
+      '<div class="aqua-track-result-actions">' +
+      (ownedOrder
+        ? '<button type="button" class="aqua-mini-btn is-inv" id="aqua-track-open-invoice"><span class="material-symbols-outlined">receipt_long</span><span>View Full Invoice</span></button>'
+        : "") +
+      '<a class="aqua-mini-btn is-wa" href="' +
+      esc(buildTrackWhatsAppHref(r.orderNumber, stageLabel)) +
+      '" target="_blank" rel="noopener noreferrer"><span class="material-symbols-outlined">chat</span><span>Ask Workshop on WhatsApp</span></a>' +
+      '<button type="button" class="aqua-mini-btn" id="aqua-track-clear-btn"><span>Track Another</span></button>' +
+      "</div>" +
+      "</div>";
+  } else {
+    bodyHtml =
+      '<div class="aqua-track-guide">' +
+      "<p>Enter the Aqua order code from your checkout confirmation or printed warranty invoice to follow every workshop step in real time:</p>" +
+      '<div class="aqua-track-stage-preview">' +
+      "<span>Order Received</span>" +
+      '<span aria-hidden="true">→</span>' +
+      "<span>In Bench-Test</span>" +
+      '<span aria-hidden="true">→</span>' +
+      "<span>Packed</span>" +
+      '<span aria-hidden="true">→</span>' +
+      "<span>With Courier</span>" +
+      '<span aria-hidden="true">→</span>' +
+      "<span>Delivered</span>" +
+      "</div>" +
+      "</div>";
+  }
+
+  host.innerHTML =
+    '<div class="aqua-auth-card aqua-track-card">' +
+    '<button type="button" class="aqua-auth-close" id="aqua-track-close" aria-label="Close Track Order modal">' +
+    '<span class="material-symbols-outlined">close</span>' +
+    "</button>" +
+    '<div class="aqua-auth-head">' +
+    '<div class="aqua-auth-brand">' +
+    '<img src="assets/logo.jpg" alt="Aqua PC Parts" />' +
+    "<div>" +
+    '<span class="aqua-auth-eyebrow">Embilipitiya Workshop &amp; Courier Tracker</span>' +
+    '<h2 id="aqua-track-title">Track Your Order</h2>' +
+    "</div>" +
+    "</div>" +
+    '<p class="aqua-auth-sub">Enter your order number to check live bench-test, ESD packaging, and island-wide courier updates.</p>' +
+    "</div>" +
+    '<form class="aqua-track-form" id="aqua-track-form" novalidate>' +
+    '<label class="aqua-sr-only" for="aqua-track-input">Order Number</label>' +
+    '<input type="text" id="aqua-track-input" class="aqua-track-input" maxlength="32" autocomplete="off" spellcheck="false" placeholder="e.g. AQ-261125-4K9M" value="' +
+    esc(state.trackQuery) +
+    '" />' +
+    '<button type="submit" class="aqua-primary-btn aqua-track-submit"' +
+    (state.trackLoading ? " disabled" : "") +
+    ">" +
+    '<span class="material-symbols-outlined">search</span>' +
+    "<span>" + (state.trackLoading ? "Checking..." : "Track Status") + "</span>" +
+    "</button>" +
+    "</form>" +
+    recentOrdersHtml +
+    bodyHtml +
+    '<div class="aqua-auth-foot">' +
+    (state.user
+      ? '<button type="button" class="aqua-text-link" id="aqua-track-open-portal">Open Full Orders &amp; Invoices Portal →</button>'
+      : '<button type="button" class="aqua-text-link" id="aqua-track-open-signin">Sign in to view all your saved orders →</button>') +
+    '<a href="tel:+94788194535">Hotline: +94 78 819 4535</a>' +
+    "</div>" +
+    "</div>";
+
+  const closeBtn = host.querySelector("#aqua-track-close");
+  if (closeBtn) closeBtn.addEventListener("click", closeTrackOrderModal);
+
+  const form = host.querySelector("#aqua-track-form");
+  if (form) {
+    form.addEventListener("submit", (e) => {
+      e.preventDefault();
+      const inp = host.querySelector("#aqua-track-input");
+      lookupOrderTracking(inp ? inp.value : "");
+    });
+  }
+
+  host.querySelectorAll("[data-track-pick]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const code = btn.getAttribute("data-track-pick") || "";
+      lookupOrderTracking(code);
+    });
+  });
+
+  const copyBtn = host.querySelector("#aqua-track-copy-num");
+  if (copyBtn && state.trackResult) {
+    copyBtn.addEventListener("click", () => {
+      const num = state.trackResult.orderNumber;
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(num).then(() => showPageToast("Copied " + num));
+      } else {
+        showPageToast("Order # " + num);
+      }
+    });
+  }
+
+  const invBtn = host.querySelector("#aqua-track-open-invoice");
+  if (invBtn && state.trackResult) {
+    invBtn.addEventListener("click", () => {
+      const owned = findLocalOwnedOrderByNumber(state.trackResult.orderNumber);
+      if (owned) openInvoiceModal(owned);
+    });
+  }
+
+  const clearBtn = host.querySelector("#aqua-track-clear-btn");
+  if (clearBtn) {
+    clearBtn.addEventListener("click", () => {
+      detachTrackListener();
+      state.trackQuery = "";
+      state.trackResult = null;
+      state.trackNotFound = false;
+      state.trackError = "";
+      renderTrackModal();
+      const inp = host.querySelector("#aqua-track-input");
+      if (inp) inp.focus();
+    });
+  }
+
+  const portalLink = host.querySelector("#aqua-track-open-portal");
+  if (portalLink) {
+    portalLink.addEventListener("click", () => {
+      closeTrackOrderModal();
+      openModal("orders");
+    });
+  }
+
+  const signinLink = host.querySelector("#aqua-track-open-signin") || host.querySelector("#aqua-track-signin-hint");
+  if (signinLink) {
+    signinLink.addEventListener("click", () => {
+      closeTrackOrderModal();
+      openModal("signin");
+    });
+  }
+}
+
+// Global click-outside, delegated track trigger, and ESC handlers
 document.addEventListener("click", (e) => {
+  const trackTrigger = e.target && e.target.closest ? e.target.closest("[data-aqua-open-track]") : null;
+  if (trackTrigger) {
+    e.preventDefault();
+    openTrackOrderModal(trackTrigger.getAttribute("data-aqua-open-track") || "");
+    return;
+  }
   if (state.menuOpen && !e.target.closest("#aqua-auth-slot")) {
     state.menuOpen = false;
     renderHeaderSlot();
@@ -1711,6 +2724,7 @@ document.addEventListener("click", (e) => {
 document.addEventListener("keydown", (e) => {
   if (e.key === "Escape") {
     if (state.invoiceOrder) closeInvoiceModal();
+    if (state.trackOpen) closeTrackOrderModal();
     if (state.modalOpen) closeModal();
     if (state.menuOpen) {
       state.menuOpen = false;
@@ -1736,6 +2750,7 @@ onAuthStateChanged(auth, async (user) => {
   }
   renderHeaderSlot();
   if (state.modalOpen) renderModalContent();
+  if (state.trackOpen) renderTrackModal();
 });
 
 // Start real-time Firestore live stock subscription for all storefront visitors
@@ -1745,9 +2760,11 @@ attachInventoryListener();
 window.AquaAuth = {
   openLogin: (mode) => openModal(mode === "register" ? "register" : "signin"),
   openPortal: (tab) => openModal(tab || "orders"),
+  openTrackOrder: (orderNumber) => openTrackOrderModal(orderNumber || ""),
   signOut: handleSignOut,
   getUser: () => state.user,
   isAdmin: isAdminUser,
+  saveCustomQuote,
 };
 
 window.AquaInventory = {
@@ -1757,12 +2774,20 @@ window.AquaInventory = {
   isAdmin: isAdminUser,
 };
 
-if (document.readyState === "loading") {
-  document.addEventListener("DOMContentLoaded", () => {
-    renderHeaderSlot();
-    applyInventoryOverridesToCatalog();
-  });
-} else {
+function initAquaAuthUI() {
   renderHeaderSlot();
   applyInventoryOverridesToCatalog();
+  try {
+    const params = new URLSearchParams(window.location.search);
+    const trackCode = params.get("track");
+    if (trackCode && trackCode.trim()) {
+      openTrackOrderModal(trackCode.trim());
+    }
+  } catch (_) {}
+}
+
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", initAquaAuthUI);
+} else {
+  initAquaAuthUI();
 }

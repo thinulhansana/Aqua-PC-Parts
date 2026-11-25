@@ -312,18 +312,112 @@
       flex-direction: column;
       gap: 1.5rem;
     }
-    .map-frame {
+    .map-ac-slot {
+      margin-bottom: 0.65rem;
+    }
+    .map-ac-slot gmp-place-autocomplete {
       width: 100%;
-      height: 250px;
+      color-scheme: dark;
+      border-radius: 10px;
+    }
+    .map-hub-presets {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.45rem;
+      margin-bottom: 0.7rem;
+    }
+    .map-hub-btn {
+      padding: 0.34rem 0.72rem;
+      border-radius: 999px;
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+      font-family: var(--font-mono);
+      font-size: 0.74rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+    .map-hub-btn:hover,
+    .map-hub-btn.active {
+      border-color: var(--cyan);
+      color: var(--cyan);
+      background: rgba(0, 242, 254, 0.1);
+    }
+    #aqua-google-map {
+      width: 100%;
+      height: 320px;
       border-radius: 14px;
       overflow: hidden;
       border: 1px solid var(--border);
-      background: var(--bg-surface);
+      background: #08111f;
     }
-    .map-frame iframe {
+    .map-route-status {
+      font-family: var(--font-mono);
+      font-size: 0.76rem;
+      color: var(--text-muted);
+      margin-top: 0.55rem;
+      line-height: 1.45;
+    }
+    .map-route-stats {
+      margin-top: 0.75rem;
+      padding: 0.9rem 1rem;
+      border-radius: 12px;
+      background: rgba(0, 242, 254, 0.06);
+      border: 1px solid rgba(0, 242, 254, 0.26);
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+    }
+    .map-route-stats[hidden] {
+      display: none;
+    }
+    .map-route-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 0.65rem;
+    }
+    .map-route-metric {
+      display: flex;
+      flex-direction: column;
+      gap: 0.15rem;
+    }
+    .map-route-metric span {
+      font-family: var(--font-mono);
+      font-size: 0.68rem;
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      color: var(--text-muted);
+    }
+    .map-route-metric strong {
+      font-family: var(--font-display);
+      font-size: 0.94rem;
+      font-weight: 800;
+      color: var(--text);
+    }
+    .map-route-metric strong.accent {
+      color: var(--cyan);
+    }
+    .map-route-apply-btn {
       width: 100%;
-      height: 100%;
-      border: 0;
+      padding: 0.6rem 0.9rem;
+      border-radius: 10px;
+      background: var(--cyan);
+      color: #05101c;
+      font-family: var(--font-display);
+      font-size: 0.82rem;
+      font-weight: 800;
+      border: none;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.4rem;
+      transition: all 0.2s ease;
+    }
+    .map-route-apply-btn:hover {
+      background: #38bdf8;
+      transform: translateY(-1px);
     }
     .hours-table {
       width: 100%;
@@ -489,9 +583,13 @@
           <span>Brand New</span>
           <span class="nav-pill-count">34</span>
         </a>
-        <a href="https://aquapc3dportal.pages.dev/" class="page-nav-link">
+        <a href="./studio-3d.html" class="page-nav-link">
           <span class="material-symbols-outlined">view_in_ar</span>
-          <span>3D Builder</span>
+          <span>3D Studio</span>
+        </a>
+        <a href="./ai-studio.html" class="page-nav-link">
+          <span class="material-symbols-outlined">movie_edit</span>
+          <span>AI Video Studio</span>
         </a>
         <a href="./contact.html" class="page-nav-link active" aria-current="page">
           <span class="material-symbols-outlined">support_agent</span>
@@ -701,10 +799,16 @@
           <p class="chain-desc">Sealed gaming mice, mechanical keyboards, webcams, studio mics, and boxed gear.</p>
         </a>
 
-        <a href="https://aquapc3dportal.pages.dev/" class="chain-col">
+        <a href="./studio-3d.html" class="chain-col">
           <span class="chain-badge">REAL-TIME 3D</span>
-          <span class="chain-title">3D PC Builder Studio</span>
-          <p class="chain-desc">Design and assemble custom dream gaming rigs in real-time WebGL with FPS benchmarks.</p>
+          <span class="chain-title">3D PC Hardware Studio</span>
+          <p class="chain-desc">Inspect custom gaming rigs in interactive WebGL PBR 3D with exploded assembly &amp; lighting.</p>
+        </a>
+
+        <a href="./ai-studio.html" class="chain-col">
+          <span class="chain-badge">GEMINI VIDEO REELS</span>
+          <span class="chain-title">AI Video &amp; Reel Studio</span>
+          <p class="chain-desc">Animate hardware photos or generate 16:9 / 9:16 showroom showcase reels directed by Gemini.</p>
         </a>
 
         <a href="https://aquapcsolutions.yyth.workers.dev/services" class="chain-col">
@@ -841,21 +945,46 @@
           </p>
         </div>
 
-        <!-- Embedded Map -->
-        <div>
-          <div class="map-frame">
-            <iframe
-              title="Aqua PC Parts Workshop Map"
-              src="https://maps.google.com/maps?q=Embilipitiya,+Sri+Lanka&t=&z=14&ie=UTF8&iwloc=&output=embed"
-              loading="lazy"
-              allowfullscreen
-            ></iframe>
+        <!-- Interactive Google Maps Platform Showroom & Sri Lanka Delivery Route Estimator -->
+        <div id="showroom-map">
+          <span style="font-family: var(--font-mono); font-size: 0.74rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--cyan); display: block; margin-bottom: 0.5rem">
+            LIVE GOOGLE MAP &amp; SRI LANKA COURIER ROUTE ESTIMATOR
+          </span>
+          <div id="aqua-map-autocomplete-slot" class="map-ac-slot" aria-label="Search Sri Lanka delivery city"></div>
+          <div id="aqua-map-hub-presets" class="map-hub-presets" aria-label="Quick Sri Lanka city delivery presets"></div>
+          <div id="aqua-google-map" role="region" aria-label="Aqua PC Parts Embilipitiya Showroom Interactive Map"></div>
+          <p id="aqua-route-status" class="map-route-status">Loading interactive Embilipitiya showroom map...</p>
+
+          <div id="aqua-route-stats" class="map-route-stats" hidden>
+            <div class="map-route-grid">
+              <div class="map-route-metric">
+                <span>Road Distance</span>
+                <strong id="aqua-route-dist">—</strong>
+              </div>
+              <div class="map-route-metric">
+                <span>Est. Drive Time</span>
+                <strong id="aqua-route-time">—</strong>
+              </div>
+              <div class="map-route-metric">
+                <span>ESD Courier Fee</span>
+                <strong id="aqua-route-courier" class="accent">—</strong>
+              </div>
+              <div class="map-route-metric">
+                <span>Delivery Window</span>
+                <strong id="aqua-route-eta">—</strong>
+              </div>
+            </div>
+            <button type="button" id="aqua-route-apply-btn" class="map-route-apply-btn">
+              <span class="material-symbols-outlined" style="font-size: 16px">add_location_alt</span>
+              <span>Apply City &amp; Route to Inquiry Form</span>
+            </button>
           </div>
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 0.5rem">
+
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 0.55rem">
             <span style="font-family: var(--font-mono); font-size: 0.78rem; color: var(--text-muted)">
               Embilipitiya, Sri Lanka (Postal: 70200)
             </span>
-            <a href="https://www.google.com/maps/search/?api=1&query=Embilipitiya,+Sri+Lanka" target="_blank" rel="noopener noreferrer" style="font-family: var(--font-mono); font-size: 0.78rem; color: var(--cyan); text-decoration: none">
+            <a href="https://www.google.com/maps/search/?api=1&query=6.3369,80.8495" target="_blank" rel="noopener noreferrer" style="font-family: var(--font-mono); font-size: 0.78rem; color: var(--cyan); text-decoration: none">
               Open in Google Maps &rarr;
             </a>
           </div>
@@ -942,7 +1071,8 @@
           <li><a href="./index.html">Storefront Home</a></li>
           <li><a href="./used-parts.html">Used Parts Catalog (358)</a></li>
           <li><a href="./brand-new-parts.html">Brand New Parts Store (34)</a></li>
-          <li><a href="https://aquapc3dportal.pages.dev/">Interactive 3D PC Builder</a></li>
+          <li><a href="./studio-3d.html">Interactive 3D PC Studio</a></li>
+          <li><a href="./ai-studio.html">AI Video &amp; Reel Studio</a></li>
           <li><a href="./contact.html">Contact Us &amp; Showroom</a></li>
           <li><a href="./admin.html">Store Admin Panel</a></li>
         </ul>
@@ -1131,6 +1261,7 @@
       }
     })();
   </script>
+  <script defer src="maps-locator.bundle.js"></script>
   <script defer src="aqua-auth.bundle.js"></script>
   <script defer src="pwa.js"></script>
 </body>

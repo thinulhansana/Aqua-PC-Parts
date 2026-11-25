@@ -1,0 +1,517 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>3D PC Hardware Showcase &amp; Rig Inspector | Aqua PC Parts — Sri Lanka</title>
+  <link rel="icon" type="image/png" sizes="192x192" href="/pwa-192x192.png" />
+  <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+  <link rel="manifest" href="/manifest.json" />
+  <meta name="theme-color" content="#0b1220" />
+  <meta
+    name="description"
+    content="Inspect a custom-built Aqua PC Parts gaming rig in real-time interactive 3D with exploded component view, camera presets, ARGB themes, and direct Sri Lanka LKR hardware quotes."
+  />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Syne:wght@700;800&display=swap"
+    rel="stylesheet"
+  />
+  <link
+    rel="stylesheet"
+    href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200"
+  />
+  <link rel="stylesheet" href="auth-panel.css" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; }
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: #0b1220;
+      color: #edf4ff;
+      font-family: "Plus Jakarta Sans", system-ui, -apple-system, sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    #studio-canvas-wrap {
+      position: fixed;
+      inset: 0;
+      width: 100vw;
+      height: 100vh;
+      overflow: hidden;
+      background: #0b1220;
+    }
+    #studio-canvas-wrap canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+      outline: none;
+    }
+
+    /* Minimal Corner Floating Top-Left Brand & Navigation (No backdrop-filter over WebGL) */
+    .s3d-corner-nav {
+      position: fixed;
+      top: 16px;
+      left: 16px;
+      z-index: 20;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .s3d-back-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      height: 38px;
+      padding: 0 14px;
+      border-radius: 10px;
+      background: rgba(13, 21, 38, 0.92);
+      border: 1px solid rgba(148, 179, 224, 0.24);
+      color: #e7f1ff;
+      text-decoration: none;
+      font-size: 0.82rem;
+      font-weight: 700;
+      transition: border-color 0.18s ease, background 0.18s ease;
+    }
+    .s3d-back-btn:hover {
+      border-color: #00e5ff;
+      background: #12203a;
+    }
+    .s3d-back-btn .material-symbols-outlined { font-size: 18px; }
+
+    .s3d-brand-chip {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      height: 38px;
+      padding: 0 14px 0 8px;
+      border-radius: 10px;
+      background: rgba(13, 21, 38, 0.92);
+      border: 1px solid rgba(148, 179, 224, 0.22);
+    }
+    .s3d-brand-chip img {
+      width: 24px;
+      height: 24px;
+      border-radius: 6px;
+      object-fit: cover;
+    }
+    .s3d-brand-chip strong {
+      font-family: "Syne", sans-serif;
+      font-size: 0.86rem;
+      letter-spacing: 0.02em;
+      color: #fff;
+    }
+    .s3d-brand-chip span {
+      font-family: "JetBrains Mono", monospace;
+      font-size: 0.68rem;
+      color: #5eead4;
+      border-left: 1px solid rgba(148, 179, 224, 0.24);
+      padding-left: 10px;
+    }
+
+    /* Top-Right Compact Utility Links */
+    .s3d-corner-right {
+      position: fixed;
+      top: 16px;
+      right: 16px;
+      z-index: 20;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .s3d-util-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      height: 36px;
+      padding: 0 12px;
+      border-radius: 9px;
+      background: rgba(13, 21, 38, 0.92);
+      border: 1px solid rgba(148, 179, 224, 0.22);
+      color: #d6e4fb;
+      text-decoration: none;
+      font-size: 0.78rem;
+      font-weight: 600;
+      cursor: pointer;
+      font-family: inherit;
+      transition: border-color 0.18s ease, color 0.18s ease;
+    }
+    .s3d-util-link:hover {
+      border-color: #00e5ff;
+      color: #fff;
+    }
+    .s3d-util-link.is-accent {
+      background: #ff6b00;
+      border-color: #ff8533;
+      color: #fff;
+      font-weight: 700;
+    }
+    .s3d-util-link.is-accent:hover {
+      background: #ff7e21;
+    }
+    .s3d-util-link .material-symbols-outlined { font-size: 16px; }
+
+    /* Click-to-Inspect Floating Hardware Card */
+    .s3d-inspect-card {
+      position: fixed;
+      top: 68px;
+      right: 16px;
+      z-index: 22;
+      width: 296px;
+      padding: 14px 16px;
+      border-radius: 14px;
+      background: rgba(11, 18, 34, 0.95);
+      border: 1px solid rgba(0, 229, 255, 0.35);
+      box-shadow: 0 18px 42px rgba(0, 0, 0, 0.45);
+      transition: opacity 0.2s ease, transform 0.2s ease;
+    }
+    .s3d-inspect-card[hidden] {
+      display: none;
+    }
+    .s3d-inspect-head {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 10px;
+      margin-bottom: 8px;
+    }
+    .s3d-inspect-kicker {
+      display: block;
+      font-family: "JetBrains Mono", monospace;
+      font-size: 0.66rem;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: #00e5ff;
+      margin-bottom: 3px;
+    }
+    .s3d-inspect-head h2 {
+      margin: 0;
+      font-family: "Syne", sans-serif;
+      font-size: 1rem;
+      line-height: 1.25;
+      color: #fff;
+    }
+    .s3d-inspect-close {
+      background: transparent;
+      border: 1px solid rgba(148, 179, 224, 0.22);
+      color: #9cb2d4;
+      width: 28px;
+      height: 28px;
+      border-radius: 8px;
+      display: grid;
+      place-items: center;
+      cursor: pointer;
+      flex-shrink: 0;
+    }
+    .s3d-inspect-close:hover { color: #fff; border-color: #00e5ff; }
+    .s3d-inspect-desc {
+      margin: 0 0 10px;
+      font-size: 0.8rem;
+      line-height: 1.45;
+      color: #a9bede;
+    }
+    .s3d-inspect-meta {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 8px 10px;
+      border-radius: 9px;
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(148, 179, 224, 0.16);
+      margin-bottom: 10px;
+      font-family: "JetBrains Mono", monospace;
+      font-size: 0.76rem;
+    }
+    .s3d-inspect-meta strong { color: #ff9f43; }
+    .s3d-inspect-actions {
+      display: flex;
+      gap: 8px;
+    }
+    .s3d-inspect-actions a {
+      flex: 1;
+      text-align: center;
+      padding: 8px 10px;
+      border-radius: 9px;
+      text-decoration: none;
+      font-size: 0.76rem;
+      font-weight: 700;
+      background: #00c4d6;
+      color: #04121d;
+    }
+    .s3d-inspect-actions a:hover { background: #26e6f7; }
+
+    /* Collapsible Bottom Studio Control Dock (<= 14% viewport height, zero backdrop-filter) */
+    .s3d-dock-wrap {
+      position: fixed;
+      left: 50%;
+      bottom: 16px;
+      transform: translateX(-50%);
+      z-index: 24;
+      width: min(940px, calc(100vw - 24px));
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+      pointer-events: none;
+    }
+    .s3d-dock-toggle {
+      pointer-events: auto;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      height: 30px;
+      padding: 0 14px;
+      border-radius: 9px;
+      background: rgba(13, 21, 38, 0.94);
+      border: 1px solid rgba(148, 179, 224, 0.25);
+      color: #cfe0fa;
+      font-family: "JetBrains Mono", monospace;
+      font-size: 0.7rem;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .s3d-dock-toggle:hover { border-color: #00e5ff; color: #fff; }
+    .s3d-dock-toggle .material-symbols-outlined { font-size: 16px; }
+
+    .s3d-dock {
+      pointer-events: auto;
+      width: 100%;
+      padding: 12px 16px;
+      border-radius: 16px;
+      background: rgba(11, 18, 34, 0.94);
+      border: 1px solid rgba(148, 179, 224, 0.24);
+      box-shadow: 0 18px 46px rgba(0, 0, 0, 0.5);
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px 16px;
+    }
+    .s3d-dock.is-collapsed {
+      display: none;
+    }
+
+    .s3d-group {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .s3d-label {
+      font-family: "JetBrains Mono", monospace;
+      font-size: 0.68rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: #8ba5cc;
+      white-space: nowrap;
+    }
+
+    .s3d-btn-row {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      flex-wrap: wrap;
+    }
+    .s3d-cam-btn {
+      height: 31px;
+      padding: 0 10px;
+      border-radius: 8px;
+      background: #14223c;
+      border: 1px solid rgba(148, 179, 224, 0.2);
+      color: #d0e1fc;
+      font-family: inherit;
+      font-size: 0.75rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.16s ease;
+    }
+    .s3d-cam-btn:hover { border-color: #00e5ff; color: #fff; }
+    .s3d-cam-btn.active {
+      background: #00c4d6;
+      border-color: #4bf2ff;
+      color: #04121d;
+      font-weight: 800;
+    }
+
+    .s3d-slider-wrap {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .s3d-slider-wrap input[type="range"] {
+      width: 112px;
+      accent-color: #00e5ff;
+      cursor: pointer;
+    }
+    .s3d-slider-val {
+      font-family: "JetBrains Mono", monospace;
+      font-size: 0.72rem;
+      color: #00e5ff;
+      min-width: 34px;
+    }
+
+    .s3d-swatches {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .s3d-swatch {
+      width: 24px;
+      height: 24px;
+      border-radius: 7px;
+      border: 2px solid rgba(255, 255, 255, 0.2);
+      cursor: pointer;
+      padding: 0;
+      transition: transform 0.15s ease, border-color 0.15s ease;
+    }
+    .s3d-swatch:hover { transform: scale(1.1); }
+    .s3d-swatch.active { border-color: #ffffff; box-shadow: 0 0 0 2px rgba(0, 229, 255, 0.55); }
+
+    .s3d-toast {
+      position: fixed;
+      left: 50%;
+      top: 68px;
+      transform: translateX(-50%) translateY(-10px);
+      z-index: 30;
+      background: #0f213d;
+      border: 1px solid #00e5ff;
+      color: #fff;
+      padding: 8px 16px;
+      border-radius: 10px;
+      font-size: 0.8rem;
+      font-weight: 600;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.2s ease, transform 0.2s ease;
+    }
+    .s3d-toast.show {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
+    }
+
+    .s3d-hint {
+      position: fixed;
+      left: 16px;
+      bottom: 16px;
+      z-index: 15;
+      font-family: "JetBrains Mono", monospace;
+      font-size: 0.68rem;
+      color: rgba(186, 207, 238, 0.72);
+      pointer-events: none;
+    }
+    @media (max-width: 960px) {
+      .s3d-brand-chip span, .s3d-hint { display: none; }
+      .s3d-dock { padding: 10px 12px; gap: 8px; }
+    }
+  </style>
+</head>
+<body>
+  <div id="studio-canvas-wrap" aria-label="Interactive 3D PC Hardware Showcase"></div>
+
+  <!-- Top-Left Minimal Navigation -->
+  <div class="s3d-corner-nav">
+    <a href="./index.html" class="s3d-back-btn">
+      <span class="material-symbols-outlined">arrow_back</span>
+      <span>Storefront</span>
+    </a>
+    <div class="s3d-brand-chip">
+      <img src="assets/logo.jpg" alt="Aqua PC Parts" />
+      <strong>3D Rig Studio</strong>
+      <span>CLICK ANY PART TO INSPECT</span>
+    </div>
+  </div>
+
+  <!-- Top-Right Compact Actions -->
+  <div class="s3d-corner-right">
+    <a href="./ai-studio.html" class="s3d-util-link">
+      <span class="material-symbols-outlined">movie_edit</span>
+      <span>AI Video Studio</span>
+    </a>
+    <a href="./contact.html#showroom-map" class="s3d-util-link">
+      <span class="material-symbols-outlined">location_on</span>
+      <span>Showroom Map</span>
+    </a>
+    <button type="button" class="s3d-util-link is-accent" id="s3d-order-rig-btn">
+      <span class="material-symbols-outlined">shopping_bag</span>
+      <span>Quote This Rig</span>
+    </button>
+  </div>
+
+  <!-- Click-to-Inspect Hardware Spec Popover -->
+  <aside class="s3d-inspect-card" id="s3d-inspect-card" hidden aria-live="polite">
+    <div class="s3d-inspect-head">
+      <div>
+        <span class="s3d-inspect-kicker" id="s3d-part-kicker">SELECTED COMPONENT</span>
+        <h2 id="s3d-part-title">RTX-Class Triple-Fan GPU</h2>
+      </div>
+      <button type="button" class="s3d-inspect-close" id="s3d-inspect-close" aria-label="Close part details">
+        <span class="material-symbols-outlined" style="font-size: 16px">close</span>
+      </button>
+    </div>
+    <p class="s3d-inspect-desc" id="s3d-part-desc"></p>
+    <div class="s3d-inspect-meta">
+      <span id="s3d-part-warranty">06-Month Lab Warranty</span>
+      <strong id="s3d-part-price">From Rs. 42,000</strong>
+    </div>
+    <div class="s3d-inspect-actions">
+      <a href="./index.html#shop" id="s3d-part-shop-link">Browse Stock in Store &rarr;</a>
+    </div>
+  </aside>
+
+  <!-- Subtle Controls Hint -->
+  <div class="s3d-hint">Drag to Orbit &middot; Scroll to Zoom &middot; Click Part to Inspect &middot; Press H for Zen Mode</div>
+
+  <!-- Collapsible Bottom Studio Control Dock -->
+  <div class="s3d-dock-wrap">
+    <button type="button" class="s3d-dock-toggle" id="s3d-dock-toggle" aria-expanded="true">
+      <span class="material-symbols-outlined" id="s3d-dock-chevron">keyboard_arrow_down</span>
+      <span id="s3d-dock-label">Hide Controls (H)</span>
+    </button>
+
+    <div class="s3d-dock" id="s3d-dock" role="region" aria-label="3D Studio Controls">
+      <div class="s3d-group">
+        <span class="s3d-label">View</span>
+        <div class="s3d-btn-row" id="s3d-cam-presets">
+          <button type="button" class="s3d-cam-btn active" data-cam="hero">Hero 3/4</button>
+          <button type="button" class="s3d-cam-btn" data-cam="gpu">GPU</button>
+          <button type="button" class="s3d-cam-btn" data-cam="board">Board &amp; RAM</button>
+          <button type="button" class="s3d-cam-btn" data-cam="cooling">AIO Loop</button>
+          <button type="button" class="s3d-cam-btn" data-cam="rear">Rear I/O</button>
+        </div>
+      </div>
+
+      <div class="s3d-group">
+        <span class="s3d-label">Explode</span>
+        <div class="s3d-slider-wrap">
+          <input type="range" id="s3d-explode-slider" min="0" max="100" value="0" aria-label="Exploded assembly amount" />
+          <span class="s3d-slider-val" id="s3d-explode-val">0%</span>
+        </div>
+      </div>
+
+      <div class="s3d-group">
+        <span class="s3d-label">Theme</span>
+        <div class="s3d-swatches" id="s3d-theme-swatches" role="radiogroup" aria-label="Chassis and RGB finish">
+          <button type="button" class="s3d-swatch active" data-theme-id="aqua" title="Obsidian &amp; Aqua Cyan" style="background: linear-gradient(135deg, #1b2230 50%, #00e5ff 50%)"></button>
+          <button type="button" class="s3d-swatch" data-theme-id="arctic" title="Arctic White &amp; Ice Blue" style="background: linear-gradient(135deg, #e7eef8 50%, #38bdf8 50%)"></button>
+          <button type="button" class="s3d-swatch" data-theme-id="gold" title="Stealth Graphite &amp; Gold" style="background: linear-gradient(135deg, #22252e 50%, #f59e0b 50%)"></button>
+          <button type="button" class="s3d-swatch" data-theme-id="crimson" title="Matte Carbon &amp; Crimson" style="background: linear-gradient(135deg, #171920 50%, #f43f5e 50%)"></button>
+        </div>
+      </div>
+
+      <div class="s3d-group">
+        <button type="button" class="s3d-cam-btn active" id="s3d-toggle-glass">Glass Panel</button>
+        <button type="button" class="s3d-cam-btn active" id="s3d-toggle-fans">Spin Fans</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="s3d-toast" id="s3d-toast" role="status"></div>
+
+  <script defer src="studio-3d.bundle.js"></script>
+  <script defer src="aqua-auth.bundle.js"></script>
+  <script defer src="pwa.js"></script>
+</body>
+</html>

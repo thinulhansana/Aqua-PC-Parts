@@ -1772,14 +1772,21 @@ th{background:#071138;color:#ffc000}
     });
   }
 
-  // ───────── Rose AI Hardware Assistant ─────────
+  // ───────── Rose AI Multi-Turn Gemini Hardware Assistant ─────────
   function initRose() {
     const fab = $("#rose-fab");
     const panel = $("#rose-panel");
     const closeBtn = $("#rose-close");
+    const resetBtn = $("#rose-reset");
+    const modelSel = $("#rose-model");
     const msgs = $("#rose-msgs");
     const form = $("#rose-form");
     const input = $("#rose-input");
+    const sendBtn = $("#rose-send");
+
+    let chatHistory = [];
+    let previousInteractionId = null;
+    let isSending = false;
 
     function addMsg(html, who) {
       const div = document.createElement("div");
@@ -1787,25 +1794,114 @@ th{background:#071138;color:#ffc000}
       div.innerHTML = html;
       msgs.appendChild(div);
       msgs.scrollTop = msgs.scrollHeight;
+      return div;
     }
 
-    function toggle(force) {
-      const open = force !== undefined ? force : panel.hidden;
-      panel.hidden = !open;
-      fab.setAttribute("aria-expanded", String(open));
-      if (open && msgs.children.length === 0) {
-        addMsg(
-          "Hi! I'm <strong>Rose</strong>, your Aqua PC Parts assistant. Ask me for prices, parts under a budget (e.g. <em>GPU under 40000</em>), or warranty info.",
-          "bot"
-        );
+    function formatRoseMarkdown(text) {
+      const safe = esc(String(text || "").trim());
+      if (!safe) return "";
+      const withBold = safe
+        .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
+        .replace(/`([^`]+)`/g, "<code>$1</code>");
+      const lines = withBold.split(/\r?\n/);
+      let html = "";
+      let inList = false;
+      for (const rawLine of lines) {
+        const line = rawLine.trim();
+        if (/^[-*•]\s+/.test(line)) {
+          if (!inList) {
+            html += "<ul>";
+            inList = true;
+          }
+          html += "<li>" + line.replace(/^[-*•]\s+/, "") + "</li>";
+        } else {
+          if (inList) {
+            html += "</ul>";
+            inList = false;
+          }
+          if (line) html += "<p>" + line + "</p>";
+        }
       }
-      if (open && input) setTimeout(() => input.focus(), 60);
+      if (inList) html += "</ul>";
+      return html;
     }
 
-    function answer(raw) {
+    function findRelevantCatalog(raw) {
       const q = raw.trim().toLowerCase();
-      addMsg(esc(raw), "user");
+      let maxPrice = null;
+      const m = q.match(/(?:under|below|less than|<)\s*(\d+(?:,\d{3})*)\s*(k)?/i);
+      if (m) maxPrice = Number(m[1].replace(/,/g, "")) * (m[2] ? 1000 : 1);
 
+      const stop = new Set([
+        "price", "prices", "under", "below", "less", "than", "for", "how", "much",
+        "is", "the", "a", "an", "any", "show", "me", "budget", "in", "stock",
+        "parts", "details", "new", "best", "suggest", "balanced", "using", "your",
+        "with", "and", "or", "lkr", "rs", "tell", "about", "what", "can", "you",
+        "compatible", "build", "gaming", "pc", "do", "have", "need"
+      ]);
+      const alias = {
+        gpu: "vga",
+        gpus: "vga",
+        graphics: "vga",
+        cpu: "processor",
+        cpus: "processor",
+        intel: "core",
+        mobo: "motherboard",
+        mobos: "motherboard",
+        mice: "mouse",
+        ssd: "storage",
+        nvme: "storage",
+        psu: "power",
+      };
+      const tokens = q
+        .replace(/[<>,?.!()]/g, " ")
+        .split(/\s+/)
+        .filter((w) => w && !stop.has(w) && !/^\d+k?$/.test(w))
+        .map((w) => alias[w] || w);
+
+      const scored = [];
+      for (const p of PRODUCTS) {
+        if (maxPrice !== null && (p.price == null || p.price > maxPrice)) continue;
+        if (q.includes("brand new") && p.cond !== "new") continue;
+        const hay = (p.name + " " + p.sku + " " + p.secLabel + " " + p.sub).toLowerCase();
+        let score = 0;
+        if (p.sku && q.includes(p.sku.toLowerCase())) score += 10;
+        for (const t of tokens) {
+          if (hay.includes(t)) score += 2;
+        }
+        if (tokens.length === 0 && maxPrice !== null) score = 1;
+        if (score > 0) scored.push({ p, score });
+      }
+
+      scored.sort((a, b) => {
+        if (b.score !== a.score) return b.score - a.score;
+        return (a.p.price == null ? 9e9 : a.p.price) - (b.p.price == null ? 9e9 : b.p.price);
+      });
+
+      return {
+        maxPrice,
+        matches: scored.slice(0, 8).map((s) => s.p),
+      };
+    }
+
+    function renderProductCards(matches) {
+      if (!matches || !matches.length) return "";
+      return (
+        '<div class="rose-cards">' +
+        matches
+          .slice(0, 4)
+          .map(
+            (p) =>
+              '<button type="button" class="rose-item" data-rose-find="' + esc(p.name) + '"><span>' +
+              esc(p.name) + "</span><b>" + (p.price != null ? fmtLKR(p.price) : "Call") + "</b></button>"
+          )
+          .join("") +
+        "</div>"
+      );
+    }
+
+    function localFallbackAnswer(raw, maxPrice, matches) {
+      const q = raw.trim().toLowerCase();
       if (/warranty|guarant|test/.test(q)) {
         addMsg(
           "All bench-tested used parts carry a <strong>06-Month Written Testing Warranty</strong>. Brand new peripherals include <strong>Store / Agent Warranty</strong>.",
@@ -1821,29 +1917,6 @@ th{background:#071138;color:#ffc000}
         );
         return;
       }
-
-      let maxPrice = null;
-      const m = q.match(/(?:under|below|less than|<)\s*(\d+(?:,\d{3})*)\s*(k)?/i);
-      if (m) maxPrice = Number(m[1].replace(/,/g, "")) * (m[2] ? 1000 : 1);
-
-      const stop = new Set(["price", "under", "below", "less", "than", "for", "how", "much", "is", "the", "a", "any", "show", "me", "budget", "in", "stock", "parts", "details", "new"]);
-      const alias = { gpu: "vga", graphics: "vga", cpu: "processor", intel: "core", mobo: "motherboard", mice: "mouse" };
-      const tokens = q
-        .replace(/[<>,?]/g, " ")
-        .split(/\s+/)
-        .filter((w) => w && !stop.has(w) && !/^\d+k?$/.test(w))
-        .map((w) => alias[w] || w);
-
-      const matches = PRODUCTS.filter((p) => {
-        if (maxPrice !== null && (p.price == null || p.price > maxPrice)) return false;
-        if (q.includes("brand new") && p.cond !== "new") return false;
-        if (!tokens.length) return true;
-        const hay = (p.name + " " + p.secLabel + " " + p.sub).toLowerCase();
-        return tokens.some((t) => hay.includes(t));
-      })
-        .sort((a, b) => (a.price == null ? 9e9 : a.price) - (b.price == null ? 9e9 : b.price))
-        .slice(0, 5);
-
       if (!matches.length) {
         addMsg(
           "No exact match found for <strong>" + esc(raw) +
@@ -1853,34 +1926,123 @@ th{background:#071138;color:#ffc000}
         );
         return;
       }
-
       addMsg(
-        "Closest matches" + (maxPrice ? " (under " + fmtLKR(maxPrice) + ")" : "") +
-          ':<div class="rose-cards">' +
-          matches
-            .map(
-              (p) =>
-                '<button type="button" class="rose-item" data-rose-find="' + esc(p.name) + '"><span>' +
-                esc(p.name) + "</span><b>" + (p.price != null ? fmtLKR(p.price) : "Call") + "</b></button>"
-            )
-            .join("") +
-          "</div>",
+        "Closest catalog matches" + (maxPrice ? " (under " + fmtLKR(maxPrice) + ")" : "") + ":" +
+          renderProductCards(matches),
         "bot"
       );
     }
 
+    function showWelcome() {
+      addMsg(
+        "Hi! I'm <strong>Rose AI</strong>, your Aqua PC Parts hardware advisor. Ask me multi-turn questions about custom builds, socket compatibility, SKU pricing, or parts under your LKR budget.",
+        "bot"
+      );
+    }
+
+    function resetChat() {
+      chatHistory = [];
+      previousInteractionId = null;
+      msgs.innerHTML = "";
+      showWelcome();
+      if (input) input.focus();
+    }
+
+    function toggle(force) {
+      const open = force !== undefined ? force : panel.hidden;
+      panel.hidden = !open;
+      fab.setAttribute("aria-expanded", String(open));
+      if (open && msgs.children.length === 0) {
+        showWelcome();
+      }
+      if (open && input) setTimeout(() => input.focus(), 60);
+    }
+
+    async function answer(raw) {
+      const trimmed = raw.trim();
+      if (!trimmed || isSending) return;
+
+      isSending = true;
+      if (sendBtn) sendBtn.disabled = true;
+      addMsg(esc(trimmed), "user");
+
+      const { maxPrice, matches } = findRelevantCatalog(trimmed);
+      const typingBubble = addMsg(
+        '<span class="rose-typing-dots"><span></span><span></span><span></span></span> Thinking with Gemini…',
+        "bot typing"
+      );
+
+      const selectedModel = modelSel ? modelSel.value : "gemini-4-hydrogen";
+      const catalogContext = matches.map((p) => ({
+        name: p.name,
+        sku: p.sku,
+        price: p.price,
+        cond: p.cond,
+        inStock: p.inStock,
+      }));
+
+      try {
+        const res = await fetch("/api/gemini/chat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            message: trimmed,
+            history: chatHistory.slice(-10),
+            previousInteractionId,
+            model: selectedModel,
+            catalogContext,
+          }),
+        });
+
+        const data = await res.json().catch(() => ({}));
+        typingBubble.remove();
+
+        if (!res.ok || !data.ok || !data.reply) {
+          throw new Error(data.error || "Gemini chat unavailable");
+        }
+
+        chatHistory.push({ role: "user", text: trimmed });
+        chatHistory.push({ role: "model", text: data.reply });
+        if (chatHistory.length > 16) chatHistory = chatHistory.slice(-16);
+        if (data.interactionId) previousInteractionId = data.interactionId;
+
+        const modelTag =
+          data.model === "gemini-3.1-flash-lite" ? "Gemini 3.1 Flash Lite" : "Gemini 4 Hydrogen";
+        addMsg(
+          formatRoseMarkdown(data.reply) +
+            renderProductCards(matches) +
+            '<div class="rose-meta-badge">' + esc(modelTag) + "</div>",
+          "bot"
+        );
+      } catch (_err) {
+        typingBubble.remove();
+        localFallbackAnswer(trimmed, maxPrice, matches);
+      } finally {
+        isSending = false;
+        if (sendBtn) sendBtn.disabled = false;
+        if (input) input.focus();
+      }
+    }
+
     fab.addEventListener("click", () => toggle());
     closeBtn.addEventListener("click", () => toggle(false));
+    if (resetBtn) resetBtn.addEventListener("click", () => resetChat());
+    if (modelSel) {
+      modelSel.addEventListener("change", () => {
+        // Switching models starts a fresh interaction thread while keeping local history
+        previousInteractionId = null;
+      });
+    }
     form.addEventListener("submit", (e) => {
       e.preventDefault();
-      if (!input.value.trim()) return;
+      if (!input.value.trim() || isSending) return;
       const val = input.value;
       input.value = "";
       answer(val);
     });
     panel.addEventListener("click", (e) => {
       const rq = e.target.closest("[data-rq]");
-      if (rq) answer(rq.dataset.rq);
+      if (rq && !isSending) answer(rq.dataset.rq);
       const rf = e.target.closest("[data-rose-find]");
       if (rf) {
         $("#search-input").value = rf.dataset.roseFind;

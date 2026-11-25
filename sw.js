@@ -1,10 +1,12 @@
-const CACHE_VERSION = "aqua-pc-parts-v2";
+const CACHE_VERSION = "aqua-pc-parts-v3";
 const SHELL_ASSETS = [
   "/",
   "/index.html",
   "/used-parts.html",
   "/brand-new-parts.html",
   "/contact.html",
+  "/studio-3d.html",
+  "/ai-studio.html",
   "/shop.css",
   "/styles.css",
   "/auth-panel.css",
@@ -14,6 +16,9 @@ const SHELL_ASSETS = [
   "/shop.js",
   "/app.js",
   "/aqua-auth.bundle.js",
+  "/studio-3d.bundle.js",
+  "/maps-locator.bundle.js",
+  "/ai-studio.bundle.js",
   "/pwa.js",
   "/manifest.json",
   "/assets/logo.jpg",
@@ -22,7 +27,7 @@ const SHELL_ASSETS = [
   "/apple-touch-icon.png",
 ];
 
-// Never intercept Firebase Auth / Firestore / external auth traffic
+// Never intercept Firebase Auth / Firestore / Google Maps / external auth traffic
 const BYPASS_HOSTS = [
   "firestore.googleapis.com",
   "identitytoolkit.googleapis.com",
@@ -30,6 +35,10 @@ const BYPASS_HOSTS = [
   "accounts.google.com",
   "apis.google.com",
   "www.googleapis.com",
+  "maps.googleapis.com",
+  "maps.gstatic.com",
+  "routes.googleapis.com",
+  "places.googleapis.com",
 ];
 
 self.addEventListener("install", (event) => {

@@ -1,4 +1,7 @@
 {
   "name": "Aqua PC Parts",
-  "description": "Sri Lanka's PC hardware superstore for bench-tested Grade-A used PC parts and factory-sealed brand new components with instant LKR quotes."
+  "description": "Sri Lanka's PC hardware superstore for bench-tested Grade-A used PC parts and factory-sealed brand new components with instant LKR quotes.",
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
 }

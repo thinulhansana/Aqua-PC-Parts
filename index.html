@@ -117,8 +117,9 @@
       <a href="#pc-combo-builder"><span>🛠️ PC Combo Builder</span></a>
       <a href="./used-parts.html"><span>✅ Certified Used Catalog</span></a>
       <a href="./brand-new-parts.html"><span>📦 Brand New Store</span></a>
-      <a href="https://aquapc3dportal.pages.dev/"><span>🧊 3D PC Builder Studio</span></a>
-      <a href="./contact.html"><span>📍 Showroom &amp; Contact</span></a>
+      <a href="./studio-3d.html"><span>🧊 3D PC Studio</span></a>
+      <a href="./ai-studio.html"><span>🎬 AI Video Studio</span></a>
+      <a href="./contact.html#showroom-map"><span>📍 Showroom &amp; Map</span></a>
     </div>
     <ul class="ne-offcanvas-cats" id="mobile-cats"></ul>
   </div>
@@ -140,11 +141,13 @@
         <span class="ne-topbar-note hide-lg">Island-Wide ESD-Safe Courier</span>
       </div>
       <nav class="ne-topbar-right" aria-label="Store Utility Links">
+        <a href="#track-order" data-aqua-open-track>Track Order</a>
         <a href="./used-parts.html">Certified Used (<span id="top-used-count">358</span>)</a>
         <a href="./brand-new-parts.html">Brand New (<span id="top-new-count">34</span>)</a>
-        <a href="https://aquapc3dportal.pages.dev/">3D PC Studio</a>
+        <a href="./studio-3d.html">3D PC Studio</a>
+        <a href="./ai-studio.html">AI Video Studio</a>
         <a href="https://aquapcsolutions.yyth.workers.dev/" class="hide-md">Main Workshop Site</a>
-        <a href="./contact.html">Showroom &amp; Map</a>
+        <a href="./contact.html#showroom-map">Showroom &amp; Map</a>
         <a href="./admin.html" class="hide-sm">Store Admin</a>
         <a href="tel:+94788194535" class="ne-topbar-tel">
           <span class="material-symbols-outlined">call</span>
@@ -284,8 +287,9 @@
           <li><a href="#shop" data-cat="storage">💾 SSD &amp; Storage</a></li>
           <li><a href="#shop" data-cat="ram">⚡ Memory (RAM)</a></li>
           <li><a href="#shop" data-cat="monitors">🖥️ Monitors</a></li>
-          <li><a href="https://aquapc3dportal.pages.dev/" class="is-external">🧊 3D Builder Studio ↗</a></li>
-          <li><a href="./contact.html">📍 Contact Us</a></li>
+          <li><a href="./studio-3d.html">🧊 3D PC Studio</a></li>
+          <li><a href="./ai-studio.html">🎬 AI Video Studio</a></li>
+          <li><a href="./contact.html#showroom-map">📍 Showroom Map</a></li>
         </ul>
       </div>
     </div>
@@ -352,7 +356,7 @@
                     <p>Compare up to 4 components side-by-side, build your cart, print an official LKR PDF quotation, or confirm via WhatsApp.</p>
                     <div class="ne-slide-ctas">
                       <a href="https://wa.me/94788194535" target="_blank" rel="noopener" class="ne-btn ne-btn-orange">WhatsApp +94 78 819 4535</a>
-                      <a href="https://aquapc3dportal.pages.dev/" class="ne-btn ne-btn-ghost">Launch 3D Studio ↗</a>
+                      <a href="./studio-3d.html" class="ne-btn ne-btn-ghost">Launch 3D Studio</a>
                     </div>
                   </div>
                 </li>
@@ -435,8 +439,8 @@
               <p>Pick compatible parts with live wattage &amp; LKR bundle pricing, or inspect rigs in 3D.</p>
             </div>
             <div class="ne-builder-promo-btns">
-              <a href="#pc-combo-builder" class="ne-btn ne-btn-orange ne-btn-sm">Quick PC Builder</a>
-              <a href="https://aquapc3dportal.pages.dev/" class="ne-btn ne-btn-outline ne-btn-sm">3D Studio ↗</a>
+              <a href="./studio-3d.html" class="ne-btn ne-btn-orange ne-btn-sm">3D PC Studio</a>
+              <a href="./ai-studio.html" class="ne-btn ne-btn-outline ne-btn-sm">AI Video Studio</a>
             </div>
           </div>
         </aside>
@@ -505,6 +509,58 @@
           <a href="#shop" class="ne-link-more">View Full Catalog →</a>
         </div>
         <div class="ne-cat-tiles" id="ne-cat-tiles"></div>
+      </div>
+    </section>
+
+    <!-- 3B. Interactive Three.js 3D Hardware Showcase Stage -->
+    <section class="ne-3d-showcase" id="showcase-3d" aria-label="Interactive 3D PC Hardware Showcase">
+      <div class="ne-container">
+        <div class="ne-3d-card">
+          <div class="ne-3d-stage-wrap">
+            <div id="home-3d-stage" class="ne-3d-canvas-host" aria-label="Interactive 3D Custom Gaming PC Rig"></div>
+            <div class="ne-3d-stage-dock" role="region" aria-label="3D Preview Controls">
+              <div class="ne-3d-dock-cams">
+                <button type="button" class="ne-3d-chip active" data-home-cam="hero">3/4 View</button>
+                <button type="button" class="ne-3d-chip" data-home-cam="gpu">GPU</button>
+                <button type="button" class="ne-3d-chip" data-home-cam="board">Board</button>
+                <button type="button" class="ne-3d-chip" data-home-cam="cooling">AIO Loop</button>
+              </div>
+              <button type="button" class="ne-3d-chip is-explode" id="home-3d-explode-btn">Exploded View</button>
+              <div class="ne-3d-swatches" role="radiogroup" aria-label="Rig finish theme">
+                <button type="button" class="ne-3d-swatch active" data-home-theme="aqua" title="Obsidian &amp; Aqua Cyan" style="background: linear-gradient(135deg, #1b2230 50%, #00e5ff 50%)"></button>
+                <button type="button" class="ne-3d-swatch" data-home-theme="arctic" title="Arctic White &amp; Ice Blue" style="background: linear-gradient(135deg, #e7eef8 50%, #38bdf8 50%)"></button>
+                <button type="button" class="ne-3d-swatch" data-home-theme="gold" title="Stealth Graphite &amp; Gold" style="background: linear-gradient(135deg, #22252e 50%, #f59e0b 50%)"></button>
+                <button type="button" class="ne-3d-swatch" data-home-theme="crimson" title="Matte Carbon &amp; Crimson" style="background: linear-gradient(135deg, #171920 50%, #f43f5e 50%)"></button>
+              </div>
+            </div>
+          </div>
+
+          <aside class="ne-3d-info">
+            <span class="ne-section-kicker">INTERACTIVE WEBGL PBR · THREE.JS STUDIO</span>
+            <h2>Inspect Our Custom Gaming Rigs in Real-Time 3D</h2>
+            <p class="ne-3d-lead">
+              Drag to orbit, trigger an exploded assembly, switch chassis finishes, or click any component inside the rig to inspect specs and workshop LKR pricing.
+            </p>
+
+            <div class="ne-3d-inspector-box" aria-live="polite">
+              <div class="ne-3d-inspector-top">
+                <span class="ne-3d-inspector-kicker">INSPECTED HARDWARE</span>
+                <strong id="home-3d-part-price">From Rs. 28,500</strong>
+              </div>
+              <h3 id="home-3d-part-title">Triple-Fan RTX-Class GPU</h3>
+              <p id="home-3d-part-desc">Click any component in the 3D viewport — GPU, ATX motherboard, 360mm AIO cooler, ARGB fans, or 850W Gold PSU — to view details.</p>
+              <a id="home-3d-part-link" href="./used-parts.html#vga-cards" class="ne-3d-part-link">Browse Matching Stock →</a>
+            </div>
+
+            <div class="ne-3d-actions">
+              <a href="./studio-3d.html" class="ne-btn ne-btn-orange">
+                <span class="material-symbols-outlined">view_in_ar</span>
+                <span>Launch Fullscreen 3D Studio</span>
+              </a>
+              <a href="#pc-combo-builder" class="ne-btn ne-btn-outline">Build With Live Stock</a>
+            </div>
+          </aside>
+        </div>
       </div>
     </section>
 
@@ -829,7 +885,8 @@
           <li><a href="./brand-new-parts.html">Brand New Store (34+)</a></li>
           <li><a href="#deals">Today's Shell Shockers</a></li>
           <li><a href="#pc-combo-builder">Quick PC Combo Builder</a></li>
-          <li><a href="https://aquapc3dportal.pages.dev/">3D PC Builder Studio ↗</a></li>
+          <li><a href="./studio-3d.html">Interactive 3D PC Studio</a></li>
+          <li><a href="./ai-studio.html">AI Video &amp; Reel Studio</a></li>
         </ul>
       </div>
 
@@ -1040,24 +1097,36 @@
       <div class="rose-id">
         <span class="rose-avatar">R</span>
         <div>
-          <strong>Rose AI · Aqua Hardware Helper</strong>
-          <small><span class="rose-dot"></span> Live Catalog Search Ready</small>
+          <strong>Rose AI · Aqua Hardware Advisor</strong>
+          <small><span class="rose-dot"></span> Gemini Multi-Turn · Live Catalog</small>
         </div>
       </div>
-      <button type="button" class="rose-close" id="rose-close" aria-label="Close Rose AI">
-        <span class="material-symbols-outlined">close</span>
-      </button>
+      <div class="rose-head-actions">
+        <button type="button" class="rose-reset" id="rose-reset" title="Start new conversation" aria-label="Start new chat">
+          <span class="material-symbols-outlined">refresh</span>
+        </button>
+        <button type="button" class="rose-close" id="rose-close" aria-label="Close Rose AI">
+          <span class="material-symbols-outlined">close</span>
+        </button>
+      </div>
+    </div>
+    <div class="rose-model-bar">
+      <label for="rose-model">Model</label>
+      <select id="rose-model" class="rose-model-select" aria-label="Select Gemini model">
+        <option value="gemini-4-hydrogen" selected>Gemini 4 Hydrogen (Default)</option>
+        <option value="gemini-3.1-flash-lite">Gemini 3.1 Flash Lite (Fast)</option>
+      </select>
     </div>
     <div class="rose-msgs" id="rose-msgs"></div>
     <div class="rose-quick">
-      <button type="button" data-rq="GPU under 40000">GPU &lt; 40k</button>
-      <button type="button" data-rq="Core i5 price">Core i5 Price</button>
-      <button type="button" data-rq="Brand new mouse">New Mice</button>
-      <button type="button" data-rq="Warranty details">Warranty?</button>
+      <button type="button" data-rq="Best GPU under 40000 LKR in stock?">GPU &lt; 40k</button>
+      <button type="button" data-rq="Suggest a balanced 150000 LKR gaming PC build using your stock">150k Build</button>
+      <button type="button" data-rq="Core i5 CPU and compatible motherboard prices">i5 + Mobo</button>
+      <button type="button" data-rq="Tell me about your warranty and island-wide courier">Warranty?</button>
     </div>
     <form class="rose-form" id="rose-form">
-      <input id="rose-input" type="text" placeholder="Ask Rose: RTX 3060, CPU under 25k, warranty…" autocomplete="off" />
-      <button type="submit" aria-label="Send message">
+      <input id="rose-input" type="text" placeholder="Ask Rose about builds, sockets, GPUs, SKUs, or budgets…" autocomplete="off" />
+      <button type="submit" id="rose-send" aria-label="Send message">
         <span class="material-symbols-outlined">send</span>
       </button>
     </form>
@@ -1071,6 +1140,7 @@
   <script src="catalog.js"></script>
   <script src="part-images.js"></script>
   <script src="shop.js"></script>
+  <script defer src="studio-3d.bundle.js"></script>
   <script defer src="aqua-auth.bundle.js"></script>
   <script defer src="pwa.js"></script>
 </body>

@@ -1,0 +1,491 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AI Video &amp; Reel Studio | Aqua PC Parts — Animate PC Builds &amp; Hardware</title>
+  <link rel="icon" type="image/png" sizes="192x192" href="/pwa-192x192.png" />
+  <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+  <link rel="manifest" href="/manifest.json" />
+  <meta name="theme-color" content="#071138" />
+  <meta
+    name="description"
+    content="Turn your custom PC build photos or hardware text prompts into 16:9 landscape or 9:16 vertical promo showcase videos with Gemini AI direction at Aqua PC Parts."
+  />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Syne:wght@700;800&display=swap"
+    rel="stylesheet"
+  />
+  <link
+    rel="stylesheet"
+    href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200"
+  />
+  <link rel="stylesheet" href="styles.css" />
+  <link rel="stylesheet" href="auth-panel.css" />
+  <style>
+    .studio-shell {
+      padding: 2.2rem 0 4rem;
+    }
+    .studio-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1.05fr) minmax(0, 1.25fr);
+      gap: 1.75rem;
+      align-items: start;
+    }
+    @media (max-width: 960px) {
+      .studio-grid { grid-template-columns: 1fr; }
+    }
+    .studio-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 1.75rem;
+    }
+    .studio-tabs {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0.65rem;
+      margin-bottom: 1.35rem;
+    }
+    .studio-tab {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+      padding: 0.78rem 1rem;
+      border-radius: 12px;
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+      font-family: inherit;
+      font-size: 0.88rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+    .studio-tab.active {
+      background: rgba(0, 242, 254, 0.12);
+      border-color: var(--cyan);
+      color: #fff;
+    }
+    .studio-field {
+      display: flex;
+      flex-direction: column;
+      gap: 0.45rem;
+      margin-bottom: 1.1rem;
+    }
+    .studio-field label {
+      font-family: var(--font-mono);
+      font-size: 0.74rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--text-muted);
+    }
+    .studio-dropzone {
+      position: relative;
+      border: 1.5px dashed rgba(0, 242, 254, 0.35);
+      border-radius: 14px;
+      background: rgba(0, 242, 254, 0.04);
+      padding: 1.25rem;
+      text-align: center;
+      cursor: pointer;
+      transition: border-color 0.2s ease, background 0.2s ease;
+    }
+    .studio-dropzone:hover, .studio-dropzone.is-dragover {
+      border-color: var(--cyan);
+      background: rgba(0, 242, 254, 0.09);
+    }
+    .studio-dropzone input {
+      position: absolute;
+      inset: 0;
+      opacity: 0;
+      cursor: pointer;
+    }
+    .studio-preview-thumb {
+      max-height: 168px;
+      max-width: 100%;
+      border-radius: 10px;
+      margin: 0.65rem auto 0;
+      display: block;
+      object-fit: cover;
+      border: 1px solid var(--border);
+    }
+    .sample-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      margin-top: 0.55rem;
+    }
+    .sample-chip {
+      padding: 0.35rem 0.72rem;
+      border-radius: 8px;
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      color: var(--text);
+      font-size: 0.76rem;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .sample-chip:hover { border-color: var(--cyan); color: var(--cyan); }
+    .studio-textarea, .studio-select {
+      width: 100%;
+      padding: 0.8rem 0.95rem;
+      border-radius: 12px;
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      color: var(--text);
+      font-family: inherit;
+      font-size: 0.92rem;
+      outline: none;
+    }
+    .studio-textarea:focus, .studio-select:focus {
+      border-color: var(--cyan);
+      box-shadow: 0 0 0 3px rgba(0, 242, 254, 0.14);
+    }
+    .ratio-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0.65rem;
+    }
+    .ratio-btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.45rem;
+      padding: 0.72rem 0.9rem;
+      border-radius: 10px;
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+      font-weight: 700;
+      font-size: 0.82rem;
+      cursor: pointer;
+    }
+    .ratio-btn.active {
+      border-color: var(--cyan);
+      background: rgba(0, 242, 254, 0.12);
+      color: #fff;
+    }
+    .studio-generate-btn {
+      width: 100%;
+      padding: 0.95rem 1.25rem;
+      border: none;
+      border-radius: 12px;
+      background: linear-gradient(135deg, #00e5ff, #14b8a6);
+      color: #04131f;
+      font-family: var(--font-display);
+      font-size: 0.98rem;
+      font-weight: 800;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+      box-shadow: 0 10px 26px rgba(0, 229, 255, 0.25);
+    }
+    .studio-generate-btn:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+
+    /* Stage & Video Player */
+    .stage-wrap {
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+    }
+    .stage-viewport {
+      width: 100%;
+      min-height: 360px;
+      border-radius: 16px;
+      background: #060b16;
+      border: 1px solid var(--border-strong);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      position: relative;
+      padding: 12px;
+    }
+    .stage-viewport canvas,
+    .stage-viewport video {
+      max-width: 100%;
+      max-height: 520px;
+      border-radius: 10px;
+      background: #000;
+      box-shadow: 0 12px 34px rgba(0, 0, 0, 0.5);
+    }
+    .stage-placeholder {
+      text-align: center;
+      padding: 2rem;
+      max-width: 420px;
+      color: var(--text-muted);
+    }
+    .stage-placeholder .material-symbols-outlined {
+      font-size: 46px;
+      color: var(--cyan);
+      margin-bottom: 0.5rem;
+    }
+    .progress-bar-track {
+      height: 8px;
+      border-radius: 99px;
+      background: rgba(255, 255, 255, 0.08);
+      overflow: hidden;
+    }
+    .progress-bar-fill {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, #00e5ff, #ff6b00);
+      transition: width 0.15s linear;
+    }
+    .stage-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.75rem;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .stage-dl-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.45rem;
+      padding: 0.68rem 1.15rem;
+      border-radius: 10px;
+      background: #ff6b00;
+      color: #fff;
+      font-weight: 700;
+      font-size: 0.85rem;
+      text-decoration: none;
+      border: none;
+      cursor: pointer;
+    }
+    .stage-dl-btn:hover { background: #ff8024; }
+    .storyboard-list {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 0.75rem;
+      margin-top: 0.35rem;
+    }
+    @media (max-width: 640px) {
+      .storyboard-list { grid-template-columns: 1fr; }
+    }
+    .scene-pill {
+      padding: 0.8rem 0.9rem;
+      border-radius: 12px;
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+    }
+    .scene-pill small {
+      display: block;
+      font-family: var(--font-mono);
+      font-size: 0.68rem;
+      color: var(--cyan);
+      margin-bottom: 0.25rem;
+    }
+    .scene-pill strong {
+      display: block;
+      font-size: 0.84rem;
+      margin-bottom: 0.2rem;
+      color: var(--text);
+    }
+    .scene-pill p {
+      margin: 0;
+      font-size: 0.76rem;
+      color: var(--text-muted);
+      line-height: 1.4;
+    }
+  </style>
+</head>
+<body data-page="ai-studio">
+  <div class="ambient-bg" aria-hidden="true">
+    <div class="ambient-orb orb-cyan"></div>
+    <div class="ambient-orb orb-teal"></div>
+    <div class="ambient-noise"></div>
+  </div>
+
+  <header class="site-header">
+    <div class="header-inner">
+      <a href="./index.html" class="brand-cluster">
+        <div class="brand-logo" aria-hidden="true">
+          <img src="assets/logo.jpg" alt="Aqua PC Parts Logo" class="site-logo-img" />
+        </div>
+        <div class="brand-text">
+          <div class="brand-title-row">
+            <span class="brand-name">Aqua PC Parts</span>
+            <span class="brand-badge">AI VIDEO STUDIO</span>
+          </div>
+          <span class="brand-sub">IMAGE-TO-VIDEO &middot; TEXT-TO-VIDEO REELS</span>
+        </div>
+      </a>
+
+      <nav class="page-nav" aria-label="Primary Storefront Divisions">
+        <a href="./index.html" class="page-nav-link">
+          <span class="material-symbols-outlined">storefront</span>
+          <span>Storefront</span>
+        </a>
+        <a href="./used-parts.html" class="page-nav-link">
+          <span class="material-symbols-outlined">verified</span>
+          <span>Used Parts</span>
+        </a>
+        <a href="./brand-new-parts.html" class="page-nav-link new-tab">
+          <span class="material-symbols-outlined">inventory_2</span>
+          <span>Brand New</span>
+        </a>
+        <a href="./studio-3d.html" class="page-nav-link">
+          <span class="material-symbols-outlined">view_in_ar</span>
+          <span>3D Studio</span>
+        </a>
+        <a href="./ai-studio.html" class="page-nav-link active" aria-current="page">
+          <span class="material-symbols-outlined">movie_edit</span>
+          <span>AI Video Studio</span>
+        </a>
+        <a href="./contact.html" class="page-nav-link">
+          <span class="material-symbols-outlined">location_on</span>
+          <span>Showroom &amp; Map</span>
+        </a>
+      </nav>
+
+      <div class="header-actions">
+        <a href="https://wa.me/94788194535" target="_blank" rel="noopener noreferrer" class="btn-whatsapp-header">
+          <span class="material-symbols-outlined" style="font-size: 18px">chat</span>
+          <span class="hide-mobile">WhatsApp</span>
+        </a>
+      </div>
+    </div>
+  </header>
+
+  <section class="hero-section compact-hero">
+    <div class="container">
+      <div class="breadcrumb-trail">
+        <a href="./index.html">Storefront</a>
+        <span>/</span>
+        <span class="current-crumb">AI Video &amp; Reel Studio</span>
+      </div>
+      <h1 class="hero-title">
+        <span>Animate <em class="serif-italic">PC Builds</em> &amp; Hardware Promo Reels</span>
+      </h1>
+      <p class="hero-desc">
+        Upload a photo of your PC rig or graphics card to animate it into a motion showcase video, or generate a 16:9 landscape / 9:16 Reels video directly from a text prompt with Gemini 4 motion direction.
+      </p>
+    </div>
+  </section>
+
+  <main class="container studio-shell">
+    <div class="studio-grid">
+      <!-- Left: Studio Generator Controls -->
+      <section class="studio-card" aria-label="Video Generator Controls">
+        <div class="studio-tabs" role="tablist">
+          <button type="button" class="studio-tab active" data-studio-mode="image" role="tab" aria-selected="true">
+            <span class="material-symbols-outlined">add_photo_alternate</span>
+            <span>Animate Image</span>
+          </button>
+          <button type="button" class="studio-tab" data-studio-mode="text" role="tab" aria-selected="false">
+            <span class="material-symbols-outlined">auto_awesome</span>
+            <span>Text to Video</span>
+          </button>
+        </div>
+
+        <!-- Image Upload Section (Visible in Animate Image Mode) -->
+        <div class="studio-field" id="studio-image-field">
+          <label for="studio-file-input">Hardware or PC Rig Photo</label>
+          <div class="studio-dropzone" id="studio-dropzone">
+            <input type="file" id="studio-file-input" accept="image/jpeg,image/png,image/webp" />
+            <span class="material-symbols-outlined" style="font-size: 30px; color: var(--cyan)">cloud_upload</span>
+            <p style="margin: 0.35rem 0 0; font-size: 0.84rem; color: var(--text)">
+              Drop a PC build or GPU image here, or click to upload
+            </p>
+            <img id="studio-img-preview" class="studio-preview-thumb" alt="Selected hardware preview" hidden />
+          </div>
+          <div class="sample-row">
+            <span style="font-size: 0.74rem; color: var(--text-muted); align-self: center">Quick sample:</span>
+            <button type="button" class="sample-chip" data-sample-img="assets/parts/gpu-prime.webp">RTX GPU</button>
+            <button type="button" class="sample-chip" data-sample-img="assets/parts/cpu-prime.webp">Core Processor</button>
+            <button type="button" class="sample-chip" data-sample-img="assets/parts/mb-prime.webp">Gaming Board</button>
+          </div>
+        </div>
+
+        <div class="studio-field">
+          <label for="studio-prompt" id="studio-prompt-label">Motion &amp; Scene Direction Prompt</label>
+          <textarea
+            id="studio-prompt"
+            class="studio-textarea"
+            rows="3"
+            placeholder="e.g. Slow cinematic zoom on the triple-fan RTX GPU with electric cyan studio rim lights and FurMark 24h verified badge..."
+          ></textarea>
+        </div>
+
+        <div class="studio-field">
+          <label>Output Aspect Ratio</label>
+          <div class="ratio-row">
+            <button type="button" class="ratio-btn active" data-aspect="16:9">
+              <span class="material-symbols-outlined">crop_16_9</span>
+              <span>16:9 Landscape</span>
+            </button>
+            <button type="button" class="ratio-btn" data-aspect="9:16">
+              <span class="material-symbols-outlined">crop_portrait</span>
+              <span>9:16 Portrait (Reels)</span>
+            </button>
+          </div>
+        </div>
+
+        <div class="studio-field">
+          <label for="studio-style">Studio Lighting Aesthetic</label>
+          <select id="studio-style" class="studio-select">
+            <option value="cyber-studio">Aqua Cyan Studio Lab</option>
+            <option value="orange-overclock">Overclock Amber &amp; Carbon</option>
+            <option value="emerald-bench">Verified Emerald Bench Test</option>
+          </select>
+        </div>
+
+        <button type="button" class="studio-generate-btn" id="studio-generate-btn">
+          <span class="material-symbols-outlined">movie_filter</span>
+          <span id="studio-btn-label">Direct &amp; Render Showcase Video</span>
+        </button>
+
+        <p id="studio-status-msg" style="margin: 0.8rem 0 0; font-size: 0.8rem; font-family: var(--font-mono); color: var(--text-muted)">
+          Ready — powered by Gemini 4 motion choreography &amp; browser video renderer.
+        </p>
+      </section>
+
+      <!-- Right: Live Render Stage & Downloadable Video -->
+      <section class="studio-card stage-wrap" aria-label="Video Output Stage">
+        <div class="stage-viewport" id="studio-stage">
+          <div class="stage-placeholder" id="studio-placeholder">
+            <span class="material-symbols-outlined">slow_motion_video</span>
+            <h3 style="margin: 0 0 0.4rem; color: var(--text); font-family: var(--font-display)">Your Showcase Video Appears Here</h3>
+            <p style="margin: 0; font-size: 0.84rem; line-height: 1.5">
+              Choose Animate Image or Text to Video on the left, pick 16:9 or 9:16, and click render to generate a playable &amp; downloadable showcase clip.
+            </p>
+          </div>
+          <canvas id="studio-render-canvas" hidden></canvas>
+          <video id="studio-video-player" controls playsinline loop hidden></video>
+        </div>
+
+        <div id="studio-progress-wrap" hidden>
+          <div class="progress-bar-track">
+            <div class="progress-bar-fill" id="studio-progress-fill"></div>
+          </div>
+        </div>
+
+        <div class="stage-actions" id="studio-output-actions" hidden>
+          <span id="studio-output-meta" style="font-family: var(--font-mono); font-size: 0.78rem; color: var(--cyan)">
+            9.0s Showcase Ready
+          </span>
+          <a id="studio-download-link" class="stage-dl-btn" download="aqua-pc-showcase.webm" href="#">
+            <span class="material-symbols-outlined">download</span>
+            <span>Download Video (.webm)</span>
+          </a>
+        </div>
+
+        <div id="studio-storyboard" class="storyboard-list" hidden></div>
+      </section>
+    </div>
+  </main>
+
+  <script defer src="ai-studio.bundle.js"></script>
+  <script defer src="aqua-auth.bundle.js"></script>
+  <script defer src="pwa.js"></script>
+</body>
+</html>
