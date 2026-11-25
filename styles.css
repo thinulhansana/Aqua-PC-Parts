@@ -3249,6 +3249,18 @@ body[data-page="new"] .section-icon {
   margin-bottom: 0.28rem;
 }
 
+.item-sku {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 0.67rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--text-dim);
+  opacity: 0.84;
+  line-height: 1.25;
+  margin: -0.16rem 0 0.32rem;
+  user-select: all;
+}
+
 .item-badges {
   display: flex;
   flex-wrap: wrap;
@@ -3313,6 +3325,7 @@ body[data-page="new"] .section-icon {
   font-size: 0.94rem;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease, background-color 0.2s ease;
 }
 
 .item-card.is-new-item .price-badge:not(.inquiry) {
@@ -3328,6 +3341,62 @@ body[data-page="new"] .section-icon {
   font-family: "JetBrains Mono", monospace;
   font-size: 0.74rem;
   font-weight: 600;
+}
+
+.item-card:hover .price-badge {
+  border-color: rgba(56, 189, 248, 0.62);
+  animation: priceBadgePulseCyan 1.65s ease-in-out infinite;
+}
+
+.item-card.is-new-item:hover .price-badge:not(.inquiry) {
+  border-color: rgba(16, 185, 129, 0.65);
+  animation: priceBadgePulseTeal 1.65s ease-in-out infinite;
+}
+
+.item-card:hover .price-badge.inquiry {
+  border-color: var(--border-strong);
+  animation: priceBadgePulseNeutral 1.65s ease-in-out infinite;
+}
+
+@keyframes priceBadgePulseCyan {
+  0%, 100% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(56, 189, 248, 0.34);
+  }
+  50% {
+    transform: scale(1.04);
+    box-shadow: 0 0 0 6px rgba(56, 189, 248, 0);
+  }
+}
+
+@keyframes priceBadgePulseTeal {
+  0%, 100% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.36);
+  }
+  50% {
+    transform: scale(1.04);
+    box-shadow: 0 0 0 6px rgba(16, 185, 129, 0);
+  }
+}
+
+@keyframes priceBadgePulseNeutral {
+  0%, 100% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(255, 102, 0, 0.24);
+  }
+  50% {
+    transform: scale(1.03);
+    box-shadow: 0 0 0 5px rgba(255, 102, 0, 0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .item-card:hover .price-badge,
+  .item-card.is-new-item:hover .price-badge:not(.inquiry),
+  .item-card:hover .price-badge.inquiry {
+    animation: none;
+  }
 }
 
 .btn-card {
@@ -4669,4 +4738,17 @@ body[data-page="new"] .section-icon {
   object-fit: contain;
   display: block;
 }
+
+.badge-low-stock {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(245, 158, 11, 0.18);
+  border: 1px solid rgba(245, 158, 11, 0.45);
+  color: #f59e0b;
+  font-size: 0.7rem;
+  font-weight: 800;
+}
+
 

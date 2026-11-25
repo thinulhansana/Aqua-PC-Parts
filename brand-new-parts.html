@@ -5,10 +5,39 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Brand New PC Parts &amp; Peripherals | Aqua PC Parts — Embilipitiya, Sri Lanka</title>
+  <link rel="icon" type="image/png" sizes="192x192" href="/pwa-192x192.png" />
   <link rel="icon" type="image/jpeg" href="assets/logo.jpg" />
-  <link rel="apple-touch-icon" href="assets/logo.jpg" />
+  <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+  <link rel="manifest" href="/manifest.json" />
   <meta name="description"
     content="Shop Factory-Sealed Brand New PC Parts, Gaming Mice, Keyboards, Combos, Webcams, USB Microphones, Sound Cards, and Boxed PC Components at Aqua PC Parts, Embilipitiya, Sri Lanka." />
+  <meta name="theme-color" content="#071138" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Aqua Parts" />
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="Aqua PC Parts" />
+  <meta property="og:title" content="Factory-Sealed Brand New PC Parts &amp; Gaming Gear | Aqua PC Parts" />
+  <meta property="og:description"
+    content="Shop sealed gaming mice, RGB keyboards, webcams, microphones &amp; boxed PC hardware in LKR with island-wide courier." />
+  <meta property="og:image" content="/pwa-512x512.png" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="Brand New PC Parts — Aqua PC Parts Sri Lanka" />
+  <meta name="twitter:image" content="/pwa-512x512.png" />
+  <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "CollectionPage",
+      "name": "Brand New PC Parts & Peripherals — Aqua PC Parts",
+      "description": "Factory-sealed brand new gaming peripherals and boxed computer hardware in Embilipitiya, Sri Lanka.",
+      "provider": {
+        "@type": "ComputerStore",
+        "name": "Aqua PC Parts — Aqua PC Solutions",
+        "telephone": "+94-78-819-4535"
+      }
+    }
+  </script>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link
@@ -17,6 +46,7 @@
   <link rel="stylesheet"
     href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" />
   <link rel="stylesheet" href="styles.css" />
+  <link rel="stylesheet" href="auth-panel.css" />
 </head>
 
 <body data-page="new">
@@ -244,6 +274,7 @@
                 <option value="price-asc">Price: Low → High</option>
                 <option value="price-desc">Price: High → Low</option>
                 <option value="name-asc">Name: A → Z</option>
+                <option value="sku-az">SKU: A – Z</option>
               </select>
             </div>
           </div>
@@ -371,6 +402,8 @@
   <script src="catalog.js"></script>
   <script src="part-images.js"></script>
   <script src="app.js"></script>
+  <script defer src="aqua-auth.bundle.js"></script>
+  <script defer src="pwa.js"></script>
 </body>
 
 </html>

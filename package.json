@@ -1,0 +1,19 @@
+{
+  "name": "aquapcparts",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "node server.js",
+    "start": "node server.js",
+    "build": "npx esbuild src/aqua-auth.js --bundle --format=iife --minify --outfile=aqua-auth.bundle.js && node --check server.js",
+    "lint": "node --check server.js && npx eslint firestore.rules"
+  },
+  "dependencies": {
+    "@firebase/eslint-plugin-security-rules": "^0.0.2",
+    "esbuild": "^0.28.2",
+    "eslint": "^10.15.0",
+    "express": "^5.3.0",
+    "firebase": "^13.4.0"
+  }
+}

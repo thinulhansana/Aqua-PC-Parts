@@ -4,13 +4,75 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Aqua PC Parts | Computer Hardware, GPUs, CPUs, Gaming Gear &amp; PC Builder – Sri Lanka</title>
+  <link rel="icon" type="image/png" sizes="192x192" href="/pwa-192x192.png" />
   <link rel="icon" type="image/jpeg" href="assets/logo.jpg" />
-  <link rel="apple-touch-icon" href="assets/logo.jpg" />
+  <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+  <link rel="manifest" href="/manifest.json" />
   <meta
     name="description"
-    content="Sri Lanka's Newegg-inspired PC hardware superstore. Shop 358+ bench-tested Grade-A used PC parts &amp; factory-sealed brand new components, GPUs, CPUs, motherboards, RAM, NVMe SSDs &amp; monitors with instant LKR quotes."
+    content="Sri Lanka's PC hardware superstore in Embilipitiya. Shop 358+ bench-tested Grade-A used PC parts &amp; factory-sealed brand new GPUs, CPUs, motherboards, RAM, NVMe SSDs &amp; monitors with live LKR pricing and 06-month written warranty."
   />
   <meta name="theme-color" content="#071138" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Aqua Parts" />
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="Aqua PC Parts" />
+  <meta property="og:locale" content="en_LK" />
+  <meta property="og:title" content="Aqua PC Parts | Sri Lanka PC Hardware Superstore &amp; Smart PC Builder" />
+  <meta
+    property="og:description"
+    content="Shop 358+ bench-tested Grade-A used PC parts &amp; brand new components with live LKR prices, smart PC compatibility checker, 06-month written testing warranty &amp; island-wide courier."
+  />
+  <meta property="og:image" content="/pwa-512x512.png" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="Aqua PC Parts — Sri Lanka PC Hardware Superstore" />
+  <meta
+    name="twitter:description"
+    content="Bench-tested Grade-A used GPUs, CPUs, motherboards, RAM, NVMe SSDs &amp; brand new peripherals in LKR with live order tracking."
+  />
+  <meta name="twitter:image" content="/pwa-512x512.png" />
+  <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "ComputerStore",
+      "name": "Aqua PC Parts — Aqua PC Solutions",
+      "description": "Bench-tested Grade-A used PC components and factory-sealed brand new computer hardware in Embilipitiya, Sri Lanka with 06-month written testing warranty and island-wide ESD-safe courier.",
+      "image": "/pwa-512x512.png",
+      "telephone": "+94-78-819-4535",
+      "priceRange": "LKR",
+      "address": {
+        "@type": "PostalAddress",
+        "addressLocality": "Embilipitiya",
+        "addressRegion": "Sabaragamuwa",
+        "addressCountry": "LK"
+      },
+      "areaServed": {
+        "@type": "Country",
+        "name": "Sri Lanka"
+      },
+      "openingHoursSpecification": [
+        {
+          "@type": "OpeningHoursSpecification",
+          "dayOfWeek": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"],
+          "opens": "08:00",
+          "closes": "19:00"
+        },
+        {
+          "@type": "OpeningHoursSpecification",
+          "dayOfWeek": "Saturday",
+          "opens": "10:00",
+          "closes": "17:00"
+        }
+      ],
+      "sameAs": [
+        "https://www.facebook.com/aquapcsolutions",
+        "https://www.instagram.com/aquapcsolutions/",
+        "https://aquapcsolutions.yyth.workers.dev/"
+      ]
+    }
+  </script>
   <script>
     (function () {
       try {
@@ -32,6 +94,7 @@
     href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200"
   />
   <link rel="stylesheet" href="shop.css" />
+  <link rel="stylesheet" href="auth-panel.css" />
 </head>
 <body>
 
@@ -175,12 +238,13 @@
 
         <button
           type="button"
-          class="ne-action-btn ne-mobile-search-btn"
+          class="ne-action-btn ne-quick-search-btn"
           id="search-modal-open"
-          aria-label="Open Fullscreen Search"
-          title="Quick Search"
+          aria-label="Open Quick Search by Name or SKU"
+          title="Quick Search (Name or SKU)"
         >
-          <span class="material-symbols-outlined">search</span>
+          <span class="material-symbols-outlined">manage_search</span>
+          <span class="ne-action-label">SKU Search</span>
         </button>
 
         <button
@@ -450,11 +514,15 @@
         <div class="ne-combo-card">
           <div class="ne-combo-head">
             <div>
-              <span class="ne-section-kicker">CUSTOM RIG CONFIGURATOR</span>
-              <h2>Combo Up — Quick PC Builder &amp; Bundle Quote</h2>
-              <p>Select components from live Aqua PC Parts stock to estimate wattage, bundle savings, and add the full build to your Cart or WhatsApp order.</p>
+              <span class="ne-section-kicker">CUSTOM RIG CONFIGURATOR · SMART COMPATIBILITY</span>
+              <h2>Combo Up — Smart PC Builder &amp; Compatibility Checker</h2>
+              <p>Select components from live stock to auto-check CPU socket, Motherboard DDR generation, and recommended PSU wattage.</p>
             </div>
             <div class="ne-combo-presets">
+              <label class="ne-compat-toggle" title="Filter Motherboards &amp; RAM automatically to match selected CPU/Board">
+                <input type="checkbox" id="combo-compat-filter" checked />
+                <span>Smart Compatibility Filter</span>
+              </label>
               <button type="button" class="ne-btn ne-btn-outline ne-btn-sm" id="combo-preset-gaming">⚡ Auto-Fill Gaming Rig</button>
               <button type="button" class="ne-btn ne-btn-outline ne-btn-sm" id="combo-preset-budget">💼 Auto-Fill Office / Value</button>
               <button type="button" class="ne-btn ne-btn-ghost ne-btn-sm" id="combo-preset-clear">Clear Slots</button>
@@ -494,7 +562,14 @@
             </div>
 
             <aside class="ne-combo-summary">
-              <div class="ne-combo-sum-badge">LIVE BUNDLE SUMMARY</div>
+              <div class="ne-combo-sum-badge">LIVE BUNDLE &amp; COMPATIBILITY</div>
+              <div class="ne-compat-box is-neutral" id="combo-compat-box" aria-live="polite">
+                <div class="ne-compat-head">
+                  <span class="material-symbols-outlined">verified_user</span>
+                  <strong>Compatibility Check Ready</strong>
+                </div>
+                <p>Pick a CPU, Motherboard &amp; RAM to verify socket, DDR type, and PSU headroom.</p>
+              </div>
               <div class="ne-combo-metrics">
                 <div class="ne-metric-row">
                   <span>Selected Parts</span>
@@ -503,6 +578,10 @@
                 <div class="ne-metric-row">
                   <span>Estimated System Load</span>
                   <strong id="combo-wattage">0 W</strong>
+                </div>
+                <div class="ne-metric-row">
+                  <span>Recommended PSU</span>
+                  <strong id="combo-rec-psu">—</strong>
                 </div>
                 <div class="ne-metric-row is-green">
                   <span>Combo Assembly Discount</span>
@@ -527,6 +606,33 @@
             </aside>
           </div>
         </div>
+      </div>
+    </section>
+
+    <!-- 4B. Verified SKU Bench-Test & Warranty Lookup Bar -->
+    <section class="ne-warranty-lookup-band" id="warranty-verify" aria-label="Verified SKU Warranty &amp; Bench-Test Lookup">
+      <div class="ne-container">
+        <div class="ne-warranty-card">
+          <div class="ne-warranty-copy">
+            <span class="ne-section-kicker">AUTHENTICITY &amp; LAB CERTIFICATION</span>
+            <h3>Verify SKU Warranty &amp; 24h Bench-Test Certificate</h3>
+            <p>Enter any Aqua PC Parts inventory SKU (e.g., <code>AQ-VGA-0001</code>) to check live workshop stock, FurMark / stress verification, and written warranty coverage.</p>
+          </div>
+          <form class="ne-warranty-form" id="warranty-lookup-form">
+            <input
+              type="text"
+              id="warranty-lookup-input"
+              placeholder="Enter SKU (e.g. AQ-VGA-0001, AQ-CPU-0005)..."
+              autocomplete="off"
+              aria-label="Enter Aqua PC Parts SKU code"
+            />
+            <button type="submit" class="ne-btn ne-btn-orange">
+              <span class="material-symbols-outlined">verified</span>
+              <span>Verify SKU</span>
+            </button>
+          </form>
+        </div>
+        <div class="ne-warranty-result" id="warranty-lookup-result" hidden aria-live="polite"></div>
       </div>
     </section>
 
@@ -623,6 +729,7 @@
                   <option value="high">Price: Highest First</option>
                   <option value="rating">Best Rating</option>
                   <option value="az">Name: A – Z</option>
+                  <option value="sku-az">SKU: A – Z</option>
                 </select>
               </label>
 
@@ -774,6 +881,7 @@
             <span class="material-symbols-outlined">verified_user</span>
             <span id="qv-warranty">06 Months Testing Warranty</span>
           </div>
+          <div class="ne-qv-bench-card" id="qv-bench-card"></div>
         </div>
         <div class="ne-qv-info">
           <span class="ne-qv-cat" id="qv-cat">Department</span>
@@ -857,16 +965,29 @@
   </div>
 
   <!-- Fullscreen Quick Search Modal -->
-  <div class="nt-search-modal" id="search-modal" hidden aria-modal="true" role="dialog">
+  <div class="nt-search-modal" id="search-modal" hidden aria-modal="true" role="dialog" aria-labelledby="search-modal-title">
     <button type="button" class="nt-modal-close" id="search-modal-close" aria-label="Close Search">
       <span class="material-symbols-outlined">close</span>
     </button>
     <div class="nt-modal-inner">
-      <h2>Search Aqua PC Parts</h2>
+      <div class="nt-modal-head-row">
+        <h2 id="search-modal-title">Search Aqua PC Parts</h2>
+        <div class="nt-search-mode-toggle" id="modal-search-mode" role="radiogroup" aria-label="Search inventory by Name or SKU">
+          <button type="button" class="nt-mode-btn active" data-search-mode="name" role="radio" aria-checked="true">
+            <span class="material-symbols-outlined">inventory_2</span>
+            <span>By Name</span>
+          </button>
+          <button type="button" class="nt-mode-btn" data-search-mode="sku" role="radio" aria-checked="false">
+            <span class="material-symbols-outlined">qr_code_2</span>
+            <span>By SKU</span>
+          </button>
+        </div>
+      </div>
       <div class="nt-modal-bar">
         <input id="modal-search-input" type="search" placeholder="Type GPU, CPU, Motherboard, RAM, SSD, Monitor…" autocomplete="off" />
-        <button type="button" id="modal-search-go"><span class="material-symbols-outlined">search</span></button>
+        <button type="button" id="modal-search-go" aria-label="Run search"><span class="material-symbols-outlined">search</span></button>
       </div>
+      <p class="nt-modal-hint" id="modal-search-hint">Searching product names, categories &amp; models. Switch to <strong>By SKU</strong> for exact inventory code lookup.</p>
       <ul class="nt-modal-results" id="modal-search-results"></ul>
     </div>
   </div>
@@ -891,6 +1012,9 @@
       </div>
       <small>Items marked “Call for price” are confirmed on WhatsApp (+94 78 819 4535).</small>
       <div class="drawer-btns">
+        <button type="button" class="btn-nt-track" id="cart-track-order">
+          <span class="material-symbols-outlined">local_shipping</span> Place Tracked Order &amp; Invoice
+        </button>
         <a class="btn-nt-wa" id="cart-checkout" href="#" target="_blank" rel="noopener">
           <span class="material-symbols-outlined">chat</span> Order via WhatsApp
         </a>
@@ -947,5 +1071,7 @@
   <script src="catalog.js"></script>
   <script src="part-images.js"></script>
   <script src="shop.js"></script>
+  <script defer src="aqua-auth.bundle.js"></script>
+  <script defer src="pwa.js"></script>
 </body>
 </html>

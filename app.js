@@ -512,6 +512,14 @@
       if (state.sortOrder === "name-asc") {
         return a.name.localeCompare(b.name);
       }
+      if (state.sortOrder === "sku-az") {
+        return (
+          String(a.sku || "").localeCompare(String(b.sku || ""), undefined, {
+            numeric: true,
+            sensitivity: "base",
+          }) || a.name.localeCompare(b.name)
+        );
+      }
       const pa = typeof a.price === "number" ? a.price : Number.POSITIVE_INFINITY;
       const pb = typeof b.price === "number" ? b.price : Number.POSITIVE_INFINITY;
       if (state.sortOrder === "price-asc") {
@@ -588,6 +596,15 @@
     titleEl.className = "item-title";
     titleEl.textContent = item.name;
 
+    const skuCode =
+      item.sku ||
+      (typeof window.generateAquaSku === "function"
+        ? window.generateAquaSku(sec && sec.id, isBrandNew)
+        : "");
+    if (skuCode) {
+      card.dataset.sku = skuCode;
+    }
+
     const badgesEl = document.createElement("div");
     badgesEl.className = "item-badges";
     const condBadgeText =
@@ -599,14 +616,28 @@
     const warrantyText =
       item.warranty || (isBrandNew ? "Store Warranty" : "06 Mo. Warranty");
 
+    const isLowStock =
+      !isOutOfStock &&
+      typeof item.stockQty === "number" &&
+      item.stockQty > 0 &&
+      item.stockQty <= (item.lowStockThreshold || 3);
+
     badgesEl.innerHTML = `
       <span class="badge-condition ${isBrandNew ? "new" : "used"}">${condBadgeText}</span>
       ${isOutOfStock ? '<span class="badge-out-of-stock">Out of Stock</span>' : ""}
+      ${isLowStock ? `<span class="badge-low-stock">Only ${item.stockQty} left</span>` : ""}
       <span class="badge-warranty">${warrantyText}</span>
       <span class="badge-grade">${categoryName}</span>
     `;
 
     metaWrap.appendChild(titleEl);
+    if (skuCode) {
+      const skuEl = document.createElement("div");
+      skuEl.className = "item-sku";
+      skuEl.title = "Inventory SKU";
+      skuEl.textContent = "SKU: " + skuCode;
+      metaWrap.appendChild(skuEl);
+    }
     metaWrap.appendChild(badgesEl);
     infoDiv.appendChild(thumb);
     infoDiv.appendChild(metaWrap);
@@ -886,6 +917,7 @@
           if (!q) return true;
           return (
             item.name.toLowerCase().includes(q) ||
+            (item.sku && item.sku.toLowerCase().includes(q)) ||
             cat.name.toLowerCase().includes(q) ||
             sec.label.toLowerCase().includes(q) ||
             (item.specs && item.specs.toLowerCase().includes(q)) ||

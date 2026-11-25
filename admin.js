@@ -190,6 +190,8 @@
     }
   }
 
+  const dirtyItemsBySku = new Map();
+
   // When an item exists in both usedSections (peripherals) and brandNewSections, keep them synced
   function syncSharedItemById(itemId, updaterFn) {
     [getUsedSections(), getNewSections()].forEach((secList) => {
@@ -198,6 +200,9 @@
           (cat.items || []).forEach((it) => {
             if (it.id === itemId) {
               updaterFn(it);
+              if (it.sku) {
+                dirtyItemsBySku.set(String(it.sku).toUpperCase(), it);
+              }
             }
           });
         });
@@ -305,6 +310,28 @@
       } catch (_) {}
     }
 
+    // Also persist modified SKUs to Firestore /inventoryOverrides when signed in as Google Admin
+    let firestoreSyncedCount = 0;
+    if (
+      dirtyItemsBySku.size > 0 &&
+      window.AquaInventory &&
+      typeof window.AquaInventory.isAdmin === "function" &&
+      window.AquaInventory.isAdmin()
+    ) {
+      for (const [sku, item] of dirtyItemsBySku.entries()) {
+        try {
+          await window.AquaInventory.saveOverride(sku, {
+            price: typeof item.price === "number" ? item.price : undefined,
+            stockQty: item.inStock === false ? 0 : typeof item.stockQty === "number" ? item.stockQty : 5,
+            inStock: item.inStock !== false,
+            lowStockThreshold: 3,
+          });
+          firestoreSyncedCount += 1;
+        } catch (_) {}
+      }
+      if (firestoreSyncedCount > 0) dirtyItemsBySku.clear();
+    }
+
     state.unsavedCount = 0;
     updateUnsavedUI();
 
@@ -314,8 +341,10 @@
         '<span class="material-symbols-outlined">cloud_upload</span><span>Save &amp; Publish Live</span>';
     }
 
-    if (publishedCloud) {
-      showToast("Saved & Published Live to aquapcparts.pages.dev!", "success");
+    if (firestoreSyncedCount > 0) {
+      showToast("Saved & Synced " + firestoreSyncedCount + " SKU(s) live to Firestore!", "success");
+    } else if (publishedCloud) {
+      showToast("Saved & Published Live! (Sign in with Admin Google in header to persist stock in Firestore)", "success");
     } else {
       showToast("Saved to browser catalog! Download catalog.js for permanent file backup.", "success");
     }
@@ -894,8 +923,15 @@
       const baseNum = baseRaw !== "" ? Number(baseRaw) : undefined;
       const finalNum = finalRaw !== "" ? Number(finalRaw) : undefined;
 
+      const nextSeq = (target.sec && Array.isArray(target.sec.categories)
+        ? target.sec.categories.reduce((s, c) => s + (c.items ? c.items.length : 0), 0)
+        : 0) + 1;
       const newItem = {
         id: slugify(name),
+        sku:
+          typeof window.generateAquaSku === "function"
+            ? window.generateAquaSku(target.sec && target.sec.id, target.isNew, nextSeq)
+            : "AQ-PRT-" + String(nextSeq).padStart(4, "0"),
         name,
         condition: target.isNew ? "new" : "used",
         warranty:
@@ -956,8 +992,15 @@
         if (!itemName) return;
         const pricePart = parts[1] ? Number(parts[1].replace(/,/g, "")) : NaN;
 
+        const batchSeq = (target.sec && Array.isArray(target.sec.categories)
+          ? target.sec.categories.reduce((s, c) => s + (c.items ? c.items.length : 0), 0)
+          : 0) + 1;
         const newItem = {
           id: slugify(itemName),
+          sku:
+            typeof window.generateAquaSku === "function"
+              ? window.generateAquaSku(target.sec && target.sec.id, target.isNew, batchSeq)
+              : "AQ-PRT-" + String(batchSeq).padStart(4, "0"),
           name: itemName,
           condition: target.isNew ? "new" : "used",
           warranty: target.isNew ? "Brand New · Store Warranty" : "06 Months Testing Warranty",
@@ -1139,7 +1182,7 @@
   }
   if (btnExportCsv) {
     btnExportCsv.addEventListener("click", () => {
-      const lines = ["Division,Department,Subcategory,Item ID,Item Name,Base Price (LKR),Selling Price (LKR),Stock Status"];
+      const lines = ["Division,Department,Subcategory,SKU,Item ID,Item Name,Base Price (LKR),Selling Price (LKR),Stock Status"];
       const appendSecs = (divName, secs) => {
         secs.forEach((sec) => {
           (sec.categories || []).forEach((cat) => {
@@ -1148,6 +1191,7 @@
                 divName,
                 '"' + String(sec.label || "").replace(/"/g, '""') + '"',
                 '"' + String(cat.name || "").replace(/"/g, '""') + '"',
+                it.sku || "",
                 it.id || "",
                 '"' + String(it.name || "").replace(/"/g, '""') + '"',
                 typeof it.retailPrice === "number" ? it.retailPrice : "",

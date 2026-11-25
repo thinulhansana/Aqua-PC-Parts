@@ -564,8 +564,8 @@ button {
   color: var(--ne-gold);
 }
 
-.ne-mobile-search-btn {
-  display: none;
+.ne-quick-search-btn {
+  display: inline-flex;
 }
 
 .ne-cart-btn {
@@ -2259,6 +2259,18 @@ button {
   color: var(--ne-orange);
 }
 
+.ne-card-sku {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--ne-text-dim);
+  opacity: 0.82;
+  line-height: 1.2;
+  margin-top: -2px;
+  user-select: all;
+}
+
 .ne-card-bullets {
   display: flex;
   flex-direction: column;
@@ -2302,15 +2314,68 @@ button {
 }
 
 .ne-price-main {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  margin-top: 2px;
+  padding: 3px 9px;
+  border-radius: 8px;
+  background: rgba(255, 102, 0, 0.1);
+  border: 1px solid rgba(255, 102, 0, 0.24);
   font-family: "JetBrains Mono", monospace;
-  font-size: 16.5px;
+  font-size: 16px;
   font-weight: 800;
   color: var(--ne-orange);
+  transform-origin: left center;
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease, background-color 0.2s ease;
 }
 
 .ne-price-main.is-call {
   color: var(--ne-cyan);
-  font-size: 14px;
+  font-size: 13.5px;
+  background: rgba(56, 189, 248, 0.1);
+  border-color: rgba(56, 189, 248, 0.26);
+}
+
+.ne-card:hover .ne-price-main {
+  border-color: rgba(255, 102, 0, 0.55);
+  background: rgba(255, 102, 0, 0.15);
+  animation: nePriceBadgePulse 1.65s ease-in-out infinite;
+}
+
+.ne-card:hover .ne-price-main.is-call {
+  border-color: rgba(56, 189, 248, 0.55);
+  background: rgba(56, 189, 248, 0.15);
+  animation: nePriceBadgePulseCyan 1.65s ease-in-out infinite;
+}
+
+@keyframes nePriceBadgePulse {
+  0%, 100% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(255, 102, 0, 0.34);
+  }
+  50% {
+    transform: scale(1.04);
+    box-shadow: 0 0 0 6px rgba(255, 102, 0, 0);
+  }
+}
+
+@keyframes nePriceBadgePulseCyan {
+  0%, 100% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(56, 189, 248, 0.32);
+  }
+  50% {
+    transform: scale(1.04);
+    box-shadow: 0 0 0 6px rgba(56, 189, 248, 0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ne-card:hover .ne-price-main,
+  .ne-card:hover .ne-price-main.is-call {
+    animation: none;
+  }
 }
 
 .ne-stock-line {
@@ -3187,9 +3252,58 @@ button {
   margin: 0 auto;
 }
 
+.nt-modal-head-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
 .nt-modal-inner h2 {
   font-family: "Syne", sans-serif;
-  margin-bottom: 14px;
+  margin: 0;
+}
+
+.nt-search-mode-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px;
+  border-radius: 11px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+}
+
+.nt-mode-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 12px;
+  border-radius: 8px;
+  border: 0;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.16s ease, color 0.16s ease, box-shadow 0.16s ease;
+}
+
+.nt-mode-btn .material-symbols-outlined {
+  font-size: 16px;
+}
+
+.nt-mode-btn:hover {
+  color: #ffffff;
+}
+
+.nt-mode-btn.active {
+  background: var(--ne-orange);
+  color: #ffffff;
+  box-shadow: 0 4px 12px rgba(255, 102, 0, 0.35);
 }
 
 .nt-modal-bar {
@@ -3197,7 +3311,7 @@ button {
   background: #ffffff;
   border-radius: 12px;
   overflow: hidden;
-  margin-bottom: 14px;
+  margin-bottom: 10px;
 }
 
 .nt-modal-bar input {
@@ -3216,6 +3330,16 @@ button {
   place-items: center;
 }
 
+.nt-modal-hint {
+  margin: 0 0 14px;
+  font-size: 12px;
+  color: rgba(226, 232, 240, 0.72);
+}
+
+.nt-modal-hint strong {
+  color: var(--ne-gold);
+}
+
 .nt-modal-results {
   display: flex;
   flex-direction: column;
@@ -3230,7 +3354,69 @@ button {
   padding: 10px 12px;
   border-radius: 10px;
   background: rgba(255, 255, 255, 0.08);
+  border: 1px solid transparent;
+  color: #ffffff;
   text-align: left;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.nt-modal-results button:hover {
+  background: rgba(255, 255, 255, 0.14);
+  border-color: rgba(255, 102, 0, 0.45);
+}
+
+.nt-modal-results li.nt-sku-match-row {
+  opacity: 0;
+  animation: ntSkuRowEnter 0.28s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  animation-delay: calc(var(--row-idx, 0) * 38ms);
+}
+
+.nt-modal-results li.nt-sku-match-row button {
+  background: rgba(56, 189, 248, 0.1);
+  border-color: rgba(56, 189, 248, 0.35);
+  animation: ntSkuRowGlow 0.85s ease-out both;
+  animation-delay: calc(var(--row-idx, 0) * 38ms);
+}
+
+.nt-modal-results li.nt-sku-match-row.is-exact-sku button {
+  background: rgba(56, 189, 248, 0.16);
+  border-color: rgba(56, 189, 248, 0.65);
+}
+
+.nt-modal-results li.nt-sku-match-row button:hover {
+  background: rgba(56, 189, 248, 0.2);
+  border-color: #38bdf8;
+}
+
+@keyframes ntSkuRowEnter {
+  0% {
+    opacity: 0;
+    transform: translateY(8px) scale(0.985);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes ntSkuRowGlow {
+  0% {
+    box-shadow: 0 0 0 0 rgba(56, 189, 248, 0.42);
+  }
+  50% {
+    box-shadow: 0 0 0 4px rgba(56, 189, 248, 0.18);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(56, 189, 248, 0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nt-modal-results li.nt-sku-match-row,
+  .nt-modal-results li.nt-sku-match-row button {
+    opacity: 1;
+    animation: none;
+  }
 }
 
 .nt-modal-results img {
@@ -3239,16 +3425,54 @@ button {
   border-radius: 7px;
   object-fit: contain;
   background: #ffffff;
+  flex-shrink: 0;
 }
 
-.nt-modal-results strong {
+.nt-modal-res-info {
   flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
 }
 
-.nt-modal-results span {
+.nt-modal-res-info strong {
+  font-size: 13.5px;
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.nt-modal-res-sku {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: "JetBrains Mono", monospace;
+  font-size: 11px;
+  color: rgba(203, 213, 225, 0.78);
+}
+
+.nt-modal-res-sku.is-sku-focus {
+  color: #38bdf8;
+  font-weight: 700;
+}
+
+.nt-modal-res-price {
   font-family: "JetBrains Mono", monospace;
   color: var(--ne-gold);
   font-weight: 700;
+  flex-shrink: 0;
+}
+
+.nt-modal-empty {
+  padding: 20px 16px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px dashed rgba(255, 255, 255, 0.18);
+  color: rgba(226, 232, 240, 0.78);
+  font-size: 13px;
+  text-align: center;
 }
 
 /* Rose AI Widget */
@@ -3539,7 +3763,7 @@ button {
   .ne-action-label {
     display: none;
   }
-  .ne-mobile-search-btn {
+  .ne-quick-search-btn {
     display: inline-flex;
   }
   .ne-bento-right {
@@ -3594,3 +3818,333 @@ button {
     padding: 20px 18px 34px;
   }
 }
+
+/* ── Live Low-Stock Indicator Pill ───────────────────────────────────────── */
+.ne-low-stock-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(245, 158, 11, 0.16);
+  border: 1px solid rgba(245, 158, 11, 0.45);
+  color: #f59e0b;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+/* ── Smart PC Compatibility Checker UI ───────────────────────────────────── */
+.ne-compat-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 11px;
+  border-radius: 10px;
+  border: 1px solid rgba(56, 189, 248, 0.35);
+  background: rgba(56, 189, 248, 0.1);
+  color: var(--ne-text);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.ne-compat-toggle input {
+  accent-color: #0ea5e9;
+  width: 15px;
+  height: 15px;
+}
+
+.ne-compat-box {
+  margin-bottom: 12px;
+  padding: 11px 12px;
+  border-radius: 12px;
+  border: 1px solid var(--ne-border);
+  background: rgba(148, 163, 184, 0.08);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.ne-compat-box.is-ok {
+  background: rgba(16, 185, 129, 0.12);
+  border-color: rgba(16, 185, 129, 0.42);
+  color: #10b981;
+}
+
+.ne-compat-box.is-warn {
+  background: rgba(239, 68, 68, 0.12);
+  border-color: rgba(239, 68, 68, 0.45);
+  color: #f87171;
+}
+
+.ne-compat-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 4px;
+  font-size: 12.5px;
+}
+
+.ne-compat-head .material-symbols-outlined {
+  font-size: 17px;
+}
+
+.ne-compat-box p {
+  margin: 0;
+  opacity: 0.92;
+}
+
+.ne-compat-box ul {
+  margin: 4px 0 0;
+  padding-left: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+/* ── Quick View Lab Bench-Test Certification Card ────────────────────────── */
+.ne-qv-sku-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 8px;
+  border-radius: 6px;
+  background: rgba(56, 189, 248, 0.14);
+  border: 1px solid rgba(56, 189, 248, 0.35);
+  color: var(--ne-cyan);
+  font-family: "JetBrains Mono", monospace;
+  font-size: 10.5px;
+  font-weight: 700;
+}
+
+.ne-qv-bench-card {
+  margin-top: 4px;
+  padding: 11px 12px;
+  border-radius: 12px;
+  background: rgba(15, 23, 42, 0.48);
+  border: 1px solid rgba(56, 189, 248, 0.25);
+}
+
+[data-theme="light"] .ne-qv-bench-card {
+  background: #f8fafc;
+  border-color: rgba(2, 132, 199, 0.25);
+}
+
+.ne-bench-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+  font-size: 11.5px;
+}
+
+.ne-bench-head strong {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--ne-text);
+}
+
+.ne-bench-head .material-symbols-outlined {
+  font-size: 16px;
+  color: var(--ne-cyan);
+}
+
+.ne-bench-seal {
+  padding: 2px 7px;
+  border-radius: 6px;
+  background: rgba(16, 185, 129, 0.16);
+  color: var(--ne-green);
+  font-family: "JetBrains Mono", monospace;
+  font-size: 9.5px;
+  font-weight: 800;
+}
+
+.ne-bench-dl {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.ne-bench-dl > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 11px;
+  padding-top: 4px;
+  border-top: 1px dashed rgba(148, 163, 184, 0.2);
+}
+
+.ne-bench-dl dt {
+  color: var(--ne-text-dim);
+  font-weight: 600;
+}
+
+.ne-bench-dl dd {
+  margin: 0;
+  font-family: "JetBrains Mono", monospace;
+  font-weight: 700;
+  color: var(--ne-text);
+  text-align: right;
+}
+
+/* ── Verified SKU & Warranty Lookup Band ─────────────────────────────────── */
+.ne-warranty-lookup-band {
+  padding: 8px 0 22px;
+}
+
+.ne-warranty-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 16px;
+  padding: 18px 22px;
+  border-radius: 16px;
+  background: var(--ne-card);
+  border: 1px solid rgba(56, 189, 248, 0.28);
+  box-shadow: var(--ne-shadow-sm);
+}
+
+.ne-warranty-copy h3 {
+  margin: 2px 0 4px;
+  font-family: "Syne", sans-serif;
+  font-size: 1.15rem;
+}
+
+.ne-warranty-copy p {
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--ne-text-dim);
+}
+
+.ne-warranty-copy code {
+  padding: 1px 6px;
+  border-radius: 5px;
+  background: rgba(56, 189, 248, 0.14);
+  color: var(--ne-cyan);
+  font-family: "JetBrains Mono", monospace;
+  font-size: 11.5px;
+}
+
+.ne-warranty-form {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1 1 320px;
+  max-width: 460px;
+}
+
+.ne-warranty-form input {
+  flex: 1;
+  height: 42px;
+  padding: 0 13px;
+  border-radius: 10px;
+  border: 1px solid var(--ne-border);
+  background: var(--ne-bg);
+  color: var(--ne-text);
+  font-family: "JetBrains Mono", monospace;
+  font-size: 12.5px;
+  outline: none;
+}
+
+.ne-warranty-form input:focus {
+  border-color: var(--ne-cyan);
+}
+
+.ne-warranty-result {
+  margin-top: 12px;
+  padding: 14px 18px;
+  border-radius: 14px;
+  background: var(--ne-card);
+  border: 1px solid rgba(16, 185, 129, 0.4);
+}
+
+.ne-war-found {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 14px;
+}
+
+.ne-war-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.ne-war-left img {
+  width: 56px;
+  height: 56px;
+  border-radius: 10px;
+  background: #ffffff;
+  object-fit: contain;
+  padding: 4px;
+}
+
+.ne-war-badge {
+  display: inline-block;
+  font-family: "JetBrains Mono", monospace;
+  font-size: 10px;
+  font-weight: 800;
+  color: var(--ne-green);
+  letter-spacing: 0.06em;
+}
+
+.ne-war-left h4 {
+  margin: 2px 0;
+  font-size: 14px;
+}
+
+.ne-war-left p {
+  margin: 0;
+  font-size: 12px;
+  color: var(--ne-text-dim);
+}
+
+.ne-war-meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  font-size: 11.5px;
+}
+
+.ne-war-not-found {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: #f87171;
+  font-size: 12.5px;
+}
+
+.ne-war-not-found p {
+  margin: 2px 0 0;
+  color: var(--ne-text-dim);
+}
+
+/* ── Cart Drawer Tracked Order Button ────────────────────────────────────── */
+.btn-nt-track {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  height: 44px;
+  border: 0;
+  border-radius: 10px;
+  background: linear-gradient(135deg, #0ea5e9 0%, #2563eb 100%);
+  color: #ffffff;
+  font-family: "Plus Jakarta Sans", sans-serif;
+  font-size: 13.5px;
+  font-weight: 800;
+  cursor: pointer;
+  transition: filter 0.16s ease, transform 0.14s ease;
+}
+
+.btn-nt-track:hover {
+  filter: brightness(1.08);
+  transform: translateY(-1px);
+}
+

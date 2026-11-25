@@ -1,0 +1,281 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "Authenticated Aqua PC Parts customer profile synchronized via Google Sign-In.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "description": "Firebase Authentication user UID matching the document ID.",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "displayName": {
+          "type": "string",
+          "description": "Customer display name shown in the header and Customer Portal.",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "email": {
+          "type": "string",
+          "format": "email",
+          "description": "Verified customer email address (PII, restricted to owner).",
+          "maxLength": 254
+        },
+        "photoURL": {
+          "type": "string",
+          "description": "Optional Google profile avatar URL.",
+          "maxLength": 500
+        },
+        "phone": {
+          "type": "string",
+          "description": "Optional WhatsApp or contact phone number for fast-tracking orders.",
+          "maxLength": 32,
+          "pattern": "^[0-9+\\-\\s()]*$"
+        },
+        "city": {
+          "type": "string",
+          "description": "Optional Sri Lanka delivery city or town.",
+          "maxLength": 80
+        },
+        "provider": {
+          "type": "string",
+          "description": "Authentication provider identifier.",
+          "enum": ["google"],
+          "maxLength": 32
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp when the profile was first created."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp of the latest profile update."
+        }
+      },
+      "required": ["uid", "displayName", "email", "provider", "createdAt", "updatedAt"]
+    },
+    "SavedQuote": {
+      "title": "SavedQuote",
+      "description": "Customer-saved PC hardware quote snapshot stored for cross-device access.",
+      "type": "object",
+      "properties": {
+        "ownerId": {
+          "type": "string",
+          "description": "UID of the user who owns this saved quote.",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "title": {
+          "type": "string",
+          "description": "Human-readable quote title (e.g., Gaming PC Build Quote).",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "itemCount": {
+          "type": "number",
+          "description": "Total number of items in the quote (1 to 100)."
+        },
+        "totalLkr": {
+          "type": "number",
+          "description": "Total estimated value in LKR."
+        },
+        "summary": {
+          "type": "string",
+          "description": "Formatted line-by-line hardware and SKU summary.",
+          "minLength": 1,
+          "maxLength": 2000
+        },
+        "fulfillment": {
+          "type": "string",
+          "description": "Preferred fulfillment method.",
+          "enum": ["pickup", "courier", "install"],
+          "maxLength": 20
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp when the quote was saved."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp when the quote was last modified."
+        }
+      },
+      "required": ["ownerId", "title", "itemCount", "totalLkr", "summary", "fulfillment", "createdAt", "updatedAt"]
+    },
+    "InventoryOverride": {
+      "title": "InventoryOverride",
+      "description": "Live storefront price and workshop stock count override keyed by product SKU (public read, admin-only write).",
+      "type": "object",
+      "properties": {
+        "sku": {
+          "type": "string",
+          "description": "Unique product inventory SKU matching the document ID.",
+          "minLength": 3,
+          "maxLength": 64,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "price": {
+          "type": "number",
+          "description": "Optional live LKR price override (0 to 100,000,000)."
+        },
+        "stockQty": {
+          "type": "number",
+          "description": "Current workshop stock count (0 to 9999)."
+        },
+        "inStock": {
+          "type": "boolean",
+          "description": "Whether the product is currently available for order."
+        },
+        "lowStockThreshold": {
+          "type": "number",
+          "description": "Threshold at or below which a low-stock indicator is shown (1 to 50)."
+        },
+        "note": {
+          "type": "string",
+          "description": "Optional short workshop stock note (e.g., Last unit tested).",
+          "maxLength": 120
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp of the latest stock update."
+        },
+        "updatedBy": {
+          "type": "string",
+          "description": "Admin UID who performed the stock update.",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        }
+      },
+      "required": ["sku", "stockQty", "inStock", "lowStockThreshold", "updatedAt", "updatedBy"]
+    },
+    "Order": {
+      "title": "Order",
+      "description": "Tracked Aqua PC Parts hardware order or workshop build request with live fulfillment stages.",
+      "type": "object",
+      "properties": {
+        "orderId": {
+          "type": "string",
+          "description": "Order document ID matching the document path.",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "orderNumber": {
+          "type": "string",
+          "description": "Human-friendly order reference number (e.g., AQ-261125-4K9M).",
+          "minLength": 5,
+          "maxLength": 32,
+          "pattern": "^[A-Z0-9\\-]+$"
+        },
+        "ownerId": {
+          "type": "string",
+          "description": "UID of the authenticated customer who placed the order.",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "customerName": {
+          "type": "string",
+          "description": "Customer name printed on the workshop invoice.",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "customerEmail": {
+          "type": "string",
+          "format": "email",
+          "description": "Customer email for order tracking and invoice copy.",
+          "maxLength": 254
+        },
+        "customerPhone": {
+          "type": "string",
+          "description": "Optional customer phone / WhatsApp number.",
+          "maxLength": 32,
+          "pattern": "^[0-9+\\-\\s()]*$"
+        },
+        "deliveryCity": {
+          "type": "string",
+          "description": "Optional Sri Lanka delivery city or workshop pickup note.",
+          "maxLength": 80
+        },
+        "fulfillment": {
+          "type": "string",
+          "description": "Fulfillment option selected by the customer.",
+          "enum": ["pickup", "courier", "install"],
+          "maxLength": 20
+        },
+        "itemsSummary": {
+          "type": "string",
+          "description": "Line-by-line hardware list with SKUs, quantities, and LKR totals.",
+          "minLength": 1,
+          "maxLength": 2500
+        },
+        "itemCount": {
+          "type": "number",
+          "description": "Total item count in the order (1 to 100)."
+        },
+        "totalLkr": {
+          "type": "number",
+          "description": "Total order value in LKR."
+        },
+        "status": {
+          "type": "string",
+          "description": "Live workshop fulfillment stage.",
+          "enum": ["received", "bench_testing", "packed", "dispatched", "delivered", "cancelled"],
+          "maxLength": 24
+        },
+        "statusNote": {
+          "type": "string",
+          "description": "Optional technician bench-test or courier tracking note.",
+          "maxLength": 240
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp when the order was created."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp when the order was last updated."
+        }
+      },
+      "required": [
+        "orderId",
+        "orderNumber",
+        "ownerId",
+        "customerName",
+        "customerEmail",
+        "fulfillment",
+        "itemsSummary",
+        "itemCount",
+        "totalLkr",
+        "status",
+        "createdAt",
+        "updatedAt"
+      ]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/UserProfile" },
+      "description": "Private customer profile documents keyed by Firebase Auth UID."
+    },
+    "/users/{userId}/savedQuotes/{quoteId}": {
+      "schema": { "$ref": "#/entities/SavedQuote" },
+      "description": "Customer-owned saved hardware quotes and cart snapshots."
+    },
+    "/inventoryOverrides/{sku}": {
+      "schema": { "$ref": "#/entities/InventoryOverride" },
+      "description": "Live storefront price and workshop stock overrides keyed by SKU."
+    },
+    "/orders/{orderId}": {
+      "schema": { "$ref": "#/entities/Order" },
+      "description": "Tracked customer hardware orders and workshop build requests."
+    }
+  }
+}

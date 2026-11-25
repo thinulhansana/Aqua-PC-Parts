@@ -4,12 +4,47 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Contact Us &amp; Hardware Showroom | Aqua PC Parts — Embilipitiya, Sri Lanka</title>
+  <link rel="icon" type="image/png" sizes="192x192" href="/pwa-192x192.png" />
   <link rel="icon" type="image/jpeg" href="assets/logo.jpg" />
-  <link rel="apple-touch-icon" href="assets/logo.jpg" />
+  <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+  <link rel="manifest" href="/manifest.json" />
   <meta
     name="description"
-    content="Contact Aqua PC Parts in Embilipitiya, Sri Lanka. Check part stock, request live FurMark & bench test videos, follow our Facebook page & Instagram profile, or send your multi-item quote directly on WhatsApp."
+    content="Contact Aqua PC Parts in Embilipitiya, Sri Lanka. Check part stock, request live FurMark &amp; bench test videos, follow our Facebook page &amp; Instagram profile, or send your multi-item quote directly on WhatsApp."
   />
+  <meta name="theme-color" content="#071138" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Aqua Parts" />
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="Aqua PC Parts" />
+  <meta property="og:title" content="Contact Aqua PC Parts Showroom — Embilipitiya, Sri Lanka" />
+  <meta
+    property="og:description"
+    content="Visit our Embilipitiya hardware lab or WhatsApp +94 78 819 4535 for live FurMark test videos, PC builds, and island-wide delivery."
+  />
+  <meta property="og:image" content="/pwa-512x512.png" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="Contact Aqua PC Parts — Embilipitiya Workshop" />
+  <meta name="twitter:image" content="/pwa-512x512.png" />
+  <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "ContactPage",
+      "name": "Contact Aqua PC Parts Showroom",
+      "mainEntity": {
+        "@type": "ComputerStore",
+        "name": "Aqua PC Parts — Aqua PC Solutions",
+        "telephone": "+94-78-819-4535",
+        "address": {
+          "@type": "PostalAddress",
+          "addressLocality": "Embilipitiya",
+          "addressCountry": "LK"
+        }
+      }
+    }
+  </script>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link
@@ -21,6 +56,7 @@
     href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200"
   />
   <link rel="stylesheet" href="styles.css" />
+  <link rel="stylesheet" href="auth-panel.css" />
   <style>
     /* Scoped Contact Page Enhancements */
     .contact-hero {
@@ -1095,6 +1131,8 @@
       }
     })();
   </script>
+  <script defer src="aqua-auth.bundle.js"></script>
+  <script defer src="pwa.js"></script>
 </body>
 </html>
 

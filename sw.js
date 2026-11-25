@@ -1,0 +1,120 @@
+const CACHE_VERSION = "aqua-pc-parts-v2";
+const SHELL_ASSETS = [
+  "/",
+  "/index.html",
+  "/used-parts.html",
+  "/brand-new-parts.html",
+  "/contact.html",
+  "/shop.css",
+  "/styles.css",
+  "/auth-panel.css",
+  "/catalog.js",
+  "/part-images.js",
+  "/live-sync.js",
+  "/shop.js",
+  "/app.js",
+  "/aqua-auth.bundle.js",
+  "/pwa.js",
+  "/manifest.json",
+  "/assets/logo.jpg",
+  "/pwa-192x192.png",
+  "/pwa-512x512.png",
+  "/apple-touch-icon.png",
+];
+
+// Never intercept Firebase Auth / Firestore / external auth traffic
+const BYPASS_HOSTS = [
+  "firestore.googleapis.com",
+  "identitytoolkit.googleapis.com",
+  "securetoken.googleapis.com",
+  "accounts.google.com",
+  "apis.google.com",
+  "www.googleapis.com",
+];
+
+self.addEventListener("install", (event) => {
+  event.waitUntil(
+    caches
+      .open(CACHE_VERSION)
+      .then((cache) => cache.addAll(SHELL_ASSETS.map((url) => new Request(url, { cache: "reload" }))))
+      .catch(() => {})
+      .then(() => self.skipWaiting())
+  );
+});
+
+self.addEventListener("activate", (event) => {
+  event.waitUntil(
+    caches
+      .keys()
+      .then((keys) =>
+        Promise.all(keys.filter((k) => k !== CACHE_VERSION).map((k) => caches.delete(k)))
+      )
+      .then(() => self.clients.claim())
+  );
+});
+
+self.addEventListener("fetch", (event) => {
+  const req = event.request;
+  if (req.method !== "GET") return;
+
+  const url = new URL(req.url);
+  if (BYPASS_HOSTS.some((h) => url.hostname.includes(h))) return;
+  if (url.pathname.startsWith("/api/")) {
+    // Network-first for live catalog API
+    event.respondWith(
+      fetch(req).catch(() => caches.match(req))
+    );
+    return;
+  }
+
+  // Google Fonts: Cache-first
+  if (url.hostname === "fonts.googleapis.com" || url.hostname === "fonts.gstatic.com") {
+    event.respondWith(
+      caches.match(req).then((cached) => {
+        if (cached) return cached;
+        return fetch(req).then((res) => {
+          if (res && res.status === 200) {
+            const copy = res.clone();
+            caches.open(CACHE_VERSION).then((c) => c.put(req, copy));
+          }
+          return res;
+        });
+      })
+    );
+    return;
+  }
+
+  // Same-origin navigations: Network-first with cached HTML fallback
+  if (req.mode === "navigate" && url.origin === self.location.origin) {
+    event.respondWith(
+      fetch(req)
+        .then((res) => {
+          if (res && res.status === 200) {
+            const copy = res.clone();
+            caches.open(CACHE_VERSION).then((c) => c.put(req, copy));
+          }
+          return res;
+        })
+        .catch(() => caches.match(req).then((c) => c || caches.match("/index.html")))
+    );
+    return;
+  }
+
+  // Same-origin static assets: Stale-While-Revalidate
+  if (url.origin === self.location.origin) {
+    event.respondWith(
+      caches.match(req).then((cached) => {
+        const net = fetch(req)
+          .then((res) => {
+            if (res && res.status === 200) {
+              const copy = res.clone();
+              caches.open(CACHE_VERSION).then((c) => c.put(req, copy));
+            }
+            return res;
+          })
+          .catch(() => cached);
+        return cached || net;
+      })
+    );
+  }
+});
