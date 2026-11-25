@@ -10,30 +10,31 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  height: 36px;
-  padding: 0 13px;
+  height: 40px;
+  padding: 0 14px;
   border-radius: 10px;
-  border: 1px solid rgba(56, 189, 248, 0.36);
-  background: rgba(56, 189, 248, 0.12);
-  color: #e0f2fe;
+  border: 1px solid rgba(56, 189, 248, 0.58);
+  background: linear-gradient(135deg, rgba(14, 165, 233, 0.28) 0%, rgba(2, 132, 199, 0.24) 100%);
+  color: #ffffff;
   font-family: "Plus Jakarta Sans", sans-serif;
   font-size: 12.5px;
   font-weight: 700;
   cursor: pointer;
   white-space: nowrap;
+  box-shadow: 0 4px 14px rgba(14, 165, 233, 0.22);
   transition: background 0.18s ease, border-color 0.18s ease, transform 0.16s ease, box-shadow 0.18s ease;
 }
 
 .aqua-auth-btn .material-symbols-outlined {
   font-size: 18px;
-  color: #38bdf8;
+  color: #7dd3fc;
 }
 
 .aqua-auth-btn:hover {
-  background: rgba(56, 189, 248, 0.22);
-  border-color: rgba(56, 189, 248, 0.72);
+  background: linear-gradient(135deg, rgba(14, 165, 233, 0.44) 0%, rgba(2, 132, 199, 0.36) 100%);
+  border-color: #38bdf8;
   transform: translateY(-1px);
-  box-shadow: 0 6px 18px rgba(56, 189, 248, 0.2);
+  box-shadow: 0 6px 18px rgba(56, 189, 248, 0.32);
 }
 
 [data-theme="light"] .aqua-auth-slot.is-std .aqua-auth-btn {
@@ -953,13 +954,40 @@ body.aqua-modal-open {
   color: #334155;
 }
 
+/* reCAPTCHA Enterprise Legal Notice */
+.aqua-recaptcha-note {
+  margin: 14px 0 0;
+  font-size: 11px;
+  line-height: 1.45;
+  color: #64748b;
+  text-align: center;
+}
+
+.aqua-recaptcha-note a {
+  color: #94a3b8;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.aqua-recaptcha-note a:hover {
+  color: #38bdf8;
+}
+
+[data-theme="light"] .aqua-recaptcha-note {
+  color: #64748b;
+}
+
+[data-theme="light"] .aqua-recaptcha-note a {
+  color: #475569;
+}
+
 /* Modal Footer */
 .aqua-auth-foot {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 10px;
-  margin-top: 18px;
+  margin-top: 14px;
   padding-top: 14px;
   border-top: 1px solid rgba(148, 163, 184, 0.18);
   font-size: 12px;
@@ -994,14 +1022,17 @@ body.aqua-modal-open {
 }
 
 @media (max-width: 640px) {
-  .aqua-auth-btn-label,
   .aqua-user-name,
   .aqua-pwa-btn-label {
     display: none;
   }
-  .aqua-auth-btn,
   .aqua-pwa-btn {
     padding: 0 9px;
+  }
+  .aqua-auth-btn {
+    height: 36px;
+    padding: 0 11px;
+    font-size: 12px;
   }
   .aqua-user-btn {
     padding: 3px 6px 3px 3px;
@@ -1015,6 +1046,15 @@ body.aqua-modal-open {
   }
   .aqua-save-quote-bar {
     flex-direction: column;
+  }
+}
+
+@media (max-width: 420px) {
+  .aqua-auth-btn-label {
+    display: none;
+  }
+  .aqua-auth-btn {
+    padding: 0 9px;
   }
 }
 

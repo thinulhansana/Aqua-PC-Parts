@@ -141,6 +141,7 @@
         <span class="ne-topbar-note hide-lg">Island-Wide ESD-Safe Courier</span>
       </div>
       <nav class="ne-topbar-right" aria-label="Store Utility Links">
+        <a href="#account" class="ne-topbar-auth" data-aqua-open-auth="signin">Sign In / Register</a>
         <a href="#track-order" data-aqua-open-track>Track Order</a>
         <a href="./used-parts.html">Certified Used (<span id="top-used-count">358</span>)</a>
         <a href="./brand-new-parts.html">Brand New (<span id="top-new-count">34</span>)</a>
@@ -249,6 +250,19 @@
           <span class="material-symbols-outlined">manage_search</span>
           <span class="ne-action-label">SKU Search</span>
         </button>
+
+        <div id="aqua-auth-slot" class="aqua-auth-slot is-ne">
+          <button
+            type="button"
+            class="aqua-auth-btn"
+            id="aqua-auth-open-btn"
+            data-aqua-open-auth="signin"
+            aria-label="Sign in to Aqua PC Parts"
+          >
+            <span class="material-symbols-outlined">login</span>
+            <span class="aqua-auth-btn-label">Sign In</span>
+          </button>
+        </div>
 
         <button
           type="button"

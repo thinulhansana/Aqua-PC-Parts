@@ -1,4 +1,4 @@
-const CACHE_VERSION = "aqua-pc-parts-v3";
+const CACHE_VERSION = "aqua-pc-parts-v4";
 const SHELL_ASSETS = [
   "/",
   "/index.html",
@@ -27,14 +27,18 @@ const SHELL_ASSETS = [
   "/apple-touch-icon.png",
 ];
 
-// Never intercept Firebase Auth / Firestore / Google Maps / external auth traffic
+// Never intercept Firebase Auth / Firestore / App Check / reCAPTCHA / Google Maps traffic
 const BYPASS_HOSTS = [
   "firestore.googleapis.com",
   "identitytoolkit.googleapis.com",
   "securetoken.googleapis.com",
+  "firebaseappcheck.googleapis.com",
   "accounts.google.com",
   "apis.google.com",
   "www.googleapis.com",
+  "www.google.com",
+  "www.gstatic.com",
+  "recaptcha.net",
   "maps.googleapis.com",
   "maps.gstatic.com",
   "routes.googleapis.com",

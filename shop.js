@@ -425,9 +425,31 @@ th{background:#071138;color:#ffc000}
   }
 
   // ───────── Hardware Comparison Tool (Up to 4 items) ─────────
+  const COMPARE_KEY = "aqua-compare-ids-v1";
   let compareIds = [];
+  let compareHideTimer = null;
+  let lastAddedCompareId = null;
 
-  function syncCompareUI() {
+  function loadCompareIds() {
+    try {
+      const saved = JSON.parse(localStorage.getItem(COMPARE_KEY) || "[]");
+      if (Array.isArray(saved)) {
+        compareIds = saved.filter((id) => Boolean(prod(id))).slice(0, 4);
+      }
+    } catch (_) {
+      compareIds = [];
+    }
+  }
+
+  function saveCompareIds() {
+    try {
+      localStorage.setItem(COMPARE_KEY, JSON.stringify(compareIds));
+    } catch (_) {}
+  }
+
+  function syncCompareUI(opts) {
+    const animateHighlight = Boolean(opts && opts.addedId);
+    const addedId = opts && opts.addedId ? opts.addedId : null;
     const countStr = compareIds.length + "/4";
     const topEl = $("#compare-count-top");
     const barCountEl = $("#compare-bar-count");
@@ -437,15 +459,19 @@ th{background:#071138;color:#ffc000}
     const bar = $("#compare-bar");
     const tray = $("#compare-tray-items");
     if (bar && tray) {
-      bar.hidden = compareIds.length === 0;
       tray.innerHTML = compareIds
         .map((id) => {
           const p = prod(id);
           if (!p) return "";
+          const isNewPill = addedId && id === addedId;
           return (
-            '<div class="ne-compare-pill"><img src="' +
+            '<div class="ne-compare-pill' +
+            (isNewPill ? " is-just-added" : "") +
+            '"><img src="' +
             esc(p.img) +
-            '" alt="" /><span>' +
+            '" onerror="this.onerror=null;this.src=\'' +
+            esc(p.fallbackImg) +
+            '\'" alt="" /><span>' +
             esc(p.name) +
             '</span><button type="button" data-compare-remove="' +
             esc(p.id) +
@@ -453,16 +479,60 @@ th{background:#071138;color:#ffc000}
           );
         })
         .join("");
+
+      if (compareIds.length > 0) {
+        if (compareHideTimer) {
+          clearTimeout(compareHideTimer);
+          compareHideTimer = null;
+        }
+        const wasHidden = bar.hidden || !bar.classList.contains("is-visible");
+        if (wasHidden) {
+          bar.hidden = false;
+          bar.setAttribute("aria-hidden", "false");
+          // Force reflow so slide-up transition plays cleanly from hidden state
+          void bar.offsetHeight;
+          bar.classList.add("is-visible");
+        } else if (animateHighlight) {
+          bar.classList.remove("is-bump");
+          void bar.offsetHeight;
+          bar.classList.add("is-bump");
+        }
+      } else {
+        bar.classList.remove("is-visible", "is-bump");
+        bar.setAttribute("aria-hidden", "true");
+        if (compareHideTimer) clearTimeout(compareHideTimer);
+        compareHideTimer = setTimeout(() => {
+          if (compareIds.length === 0) bar.hidden = true;
+        }, 280);
+      }
     }
 
     $$("[data-compare]").forEach((cb) => {
       cb.checked = compareIds.includes(cb.dataset.compare);
     });
+
+    $$("[data-quick-compare]").forEach((btn) => {
+      const id = btn.dataset.quickCompare;
+      const active = compareIds.includes(id);
+      btn.classList.toggle("is-active", active);
+      btn.setAttribute("aria-pressed", active ? "true" : "false");
+      btn.innerHTML =
+        '<span class="material-symbols-outlined">' +
+        (active ? "check" : "compare_arrows") +
+        "</span><span>" +
+        (active ? "In Compare" : "Quick Compare") +
+        "</span>";
+    });
   }
 
   function toggleCompare(id) {
+    if (!id) return;
     if (compareIds.includes(id)) {
       compareIds = compareIds.filter((x) => x !== id);
+      lastAddedCompareId = null;
+      saveCompareIds();
+      syncCompareUI();
+      toast("Removed from comparison tray.");
     } else {
       if (compareIds.length >= 4) {
         toast("You can compare up to 4 hardware items at once.");
@@ -470,13 +540,23 @@ th{background:#071138;color:#ffc000}
         return;
       }
       compareIds.push(id);
+      lastAddedCompareId = id;
+      saveCompareIds();
+      syncCompareUI({ addedId: id });
+      const p = prod(id);
+      if (p) {
+        toast(
+          compareIds.length >= 2
+            ? "Added " + p.name + " to Compare (" + compareIds.length + "/4)"
+            : "Added to Compare Tray — pick 1 more item to compare side-by-side"
+        );
+      }
     }
-    syncCompareUI();
   }
 
   function openCompareModal() {
     if (compareIds.length < 2) {
-      toast("Select at least 2 parts using the Compare checkboxes to view side-by-side.");
+      toast("Select at least 2 parts using Quick Compare to view side-by-side.");
       return;
     }
     const items = compareIds.map(prod).filter(Boolean);
@@ -520,7 +600,7 @@ th{background:#071138;color:#ffc000}
   // ───────── Newegg Dense Product Card ─────────
   function productCard(p) {
     const catLine = p.sub ? p.secLabel + " · " + p.sub : p.secLabel;
-    const isChecked = compareIds.includes(p.id) ? " checked" : "";
+    const inCompare = compareIds.includes(p.id);
     const badgeCls = p.cond === "new" ? "ne-cond-badge is-new" : "ne-cond-badge is-used";
     const badgeTxt = p.cond === "new" ? "Brand New" : "Used · 06M";
 
@@ -541,7 +621,18 @@ th{background:#071138;color:#ffc000}
       '<li class="ne-card' + (p.inStock ? "" : " oos") + '" data-sku="' + esc(p.sku || "") + '">' +
       '<div class="ne-card-top">' +
       '<span class="' + badgeCls + '">' + badgeTxt + "</span>" +
-      '<label class="ne-compare-check"><input type="checkbox" data-compare="' + esc(p.id) + '"' + isChecked + " /><span>Compare</span></label>" +
+      '<button type="button" class="ne-quick-compare-btn' +
+      (inCompare ? " is-active" : "") +
+      '" data-quick-compare="' +
+      esc(p.id) +
+      '" aria-pressed="' +
+      (inCompare ? "true" : "false") +
+      '" title="Add to side-by-side hardware comparison">' +
+      '<span class="material-symbols-outlined">' +
+      (inCompare ? "check" : "compare_arrows") +
+      "</span><span>" +
+      (inCompare ? "In Compare" : "Quick Compare") +
+      "</span></button>" +
       "</div>" +
       '<div class="ne-card-img-wrap" data-qv="' + esc(p.id) + '">' +
       (p.price != null ? '<span class="ne-save-tag">-' + p.savePct + "%</span>" : "") +
@@ -2103,9 +2194,16 @@ th{background:#071138;color:#ffc000}
         return;
       }
 
+      const quickCmp = e.target.closest("[data-quick-compare]");
+      if (quickCmp) {
+        toggleCompare(quickCmp.dataset.quickCompare);
+        return;
+      }
+
       const cmpRm = e.target.closest("[data-compare-remove]");
       if (cmpRm) {
         compareIds = compareIds.filter((id) => id !== cmpRm.dataset.compareRemove);
+        saveCompareIds();
         syncCompareUI();
         return;
       }
@@ -2353,6 +2451,7 @@ th{background:#071138;color:#ffc000}
     if ($("#compare-clear-btn")) {
       $("#compare-clear-btn").addEventListener("click", () => {
         compareIds = [];
+        saveCompareIds();
         syncCompareUI();
       });
     }
@@ -2458,6 +2557,7 @@ th{background:#071138;color:#ffc000}
     if (localStorage.getItem(VIEW_KEY) === "list") setViewMode("list");
   } catch (_) {}
   build();
+  loadCompareIds();
   renderStatic();
   initShellShocker();
   startShockerTimer();

@@ -674,6 +674,21 @@
       renderCatalog();
     });
 
+    const inCompare = state.compareIds.includes(item.id);
+    const compareBtn = document.createElement("button");
+    compareBtn.type = "button";
+    compareBtn.className = "btn-card btn-quick-compare" + (inCompare ? " in-compare" : "");
+    compareBtn.setAttribute("data-cat-compare", item.id);
+    compareBtn.setAttribute("aria-pressed", String(inCompare));
+    compareBtn.title = "Add to hardware comparison tray";
+    compareBtn.innerHTML = `
+      <span class="material-symbols-outlined">${inCompare ? "check" : "compare_arrows"}</span>
+      <span>${inCompare ? "In Compare" : "Quick Compare"}</span>
+    `;
+    compareBtn.addEventListener("click", () => {
+      toggleCatalogCompare(item.id);
+    });
+
     const customizeBtn = document.createElement("button");
     customizeBtn.type = "button";
     customizeBtn.className = "btn-card" + (isCustomizing ? " active" : "");
@@ -694,6 +709,7 @@
     waBtn.appendChild(waLabel);
 
     actionsDiv.appendChild(priceBadge);
+    actionsDiv.appendChild(compareBtn);
     actionsDiv.appendChild(quoteBtn);
     actionsDiv.appendChild(customizeBtn);
     actionsDiv.appendChild(waBtn);
@@ -1196,9 +1212,312 @@
     });
   });
 
-  // Keyboard shortcuts: "/" focuses search, "Escape" closes Quote Drawer
+  // ───────── Quick Compare Tray & Side-by-Side Comparison Modal ─────────
+  const COMPARE_STORAGE_KEY = "aqua-compare-ids-v1";
+  state.compareIds = [];
+  let catCompareHideTimer = null;
+
+  function findCatalogItemMeta(id) {
+    const allGroups = [...USED_SECTIONS, ...BRAND_NEW_SECTIONS];
+    for (const sec of allGroups) {
+      for (const cat of sec.categories || []) {
+        for (const it of cat.items || []) {
+          if (it && it.id === id) {
+            const isBrandNew = isNewConditionItem(it, sec);
+            const img =
+              typeof window.getAquaPartImage === "function"
+                ? window.getAquaPartImage(it, sec.id, cat.name)
+                : "assets/cats/expansion.webp";
+            const fallback =
+              typeof window.getAquaPartFallback === "function"
+                ? window.getAquaPartFallback(it, sec.id, cat.name)
+                : "assets/cats/expansion.webp";
+            return {
+              item: it,
+              sec,
+              sectionLabel: sec.label || "",
+              categoryName: cat.name || "",
+              isBrandNew,
+              img,
+              fallback,
+            };
+          }
+        }
+      }
+    }
+    return null;
+  }
+
+  function loadCatalogCompare() {
+    try {
+      const saved = JSON.parse(localStorage.getItem(COMPARE_STORAGE_KEY) || "[]");
+      if (Array.isArray(saved)) {
+        state.compareIds = saved.filter((id) => Boolean(findCatalogItemMeta(id))).slice(0, 4);
+      }
+    } catch (_) {
+      state.compareIds = [];
+    }
+  }
+
+  function saveCatalogCompare() {
+    try {
+      localStorage.setItem(COMPARE_STORAGE_KEY, JSON.stringify(state.compareIds));
+    } catch (_) {}
+  }
+
+  function showCatalogToast(msg) {
+    let t = document.getElementById("cat-compare-toast");
+    if (!t) {
+      t = document.createElement("div");
+      t.id = "cat-compare-toast";
+      t.className = "cat-compare-toast";
+      t.setAttribute("role", "status");
+      document.body.appendChild(t);
+    }
+    t.textContent = msg;
+    t.classList.add("show");
+    clearTimeout(showCatalogToast._timer);
+    showCatalogToast._timer = setTimeout(() => t.classList.remove("show"), 2400);
+  }
+
+  function ensureCatalogCompareUI() {
+    let bar = document.getElementById("catalog-compare-bar");
+    if (!bar) {
+      bar = document.createElement("div");
+      bar.id = "catalog-compare-bar";
+      bar.className = "cat-compare-bar";
+      bar.hidden = true;
+      bar.setAttribute("aria-hidden", "true");
+      bar.innerHTML =
+        '<div class="cat-compare-inner">' +
+        '<div class="cat-compare-left">' +
+        '<strong class="cat-compare-heading">Compare Hardware (<span id="cat-compare-count">0</span>/4)</strong>' +
+        '<div class="cat-compare-items" id="cat-compare-items"></div>' +
+        "</div>" +
+        '<div class="cat-compare-right">' +
+        '<button type="button" class="btn-card" id="cat-compare-clear">Clear</button>' +
+        '<button type="button" class="cat-compare-cta" id="cat-compare-open">Compare Side-by-Side</button>' +
+        "</div>" +
+        "</div>";
+      document.body.appendChild(bar);
+
+      bar.querySelector("#cat-compare-clear").addEventListener("click", () => {
+        state.compareIds = [];
+        saveCatalogCompare();
+        syncCatalogCompareUI();
+      });
+      bar.querySelector("#cat-compare-open").addEventListener("click", openCatalogCompareModal);
+    }
+
+    let modal = document.getElementById("catalog-compare-modal");
+    if (!modal) {
+      modal = document.createElement("div");
+      modal.id = "catalog-compare-modal";
+      modal.className = "cat-compare-modal";
+      modal.hidden = true;
+      modal.setAttribute("role", "dialog");
+      modal.setAttribute("aria-modal", "true");
+      modal.setAttribute("aria-labelledby", "cat-compare-modal-title");
+      modal.innerHTML =
+        '<div class="cat-compare-backdrop" id="cat-compare-backdrop"></div>' +
+        '<div class="cat-compare-dialog">' +
+        '<div class="cat-compare-dialog-head">' +
+        '<h2 id="cat-compare-modal-title">Hardware Side-by-Side Comparison</h2>' +
+        '<button type="button" class="btn-card" id="cat-compare-close" aria-label="Close comparison"><span class="material-symbols-outlined">close</span></button>' +
+        "</div>" +
+        '<div class="cat-compare-table-wrap" id="cat-compare-table-wrap"></div>' +
+        "</div>";
+      document.body.appendChild(modal);
+
+      modal.querySelector("#cat-compare-close").addEventListener("click", closeCatalogCompareModal);
+      modal.querySelector("#cat-compare-backdrop").addEventListener("click", closeCatalogCompareModal);
+    }
+    return bar;
+  }
+
+  function closeCatalogCompareModal() {
+    const modal = document.getElementById("catalog-compare-modal");
+    if (modal) modal.hidden = true;
+  }
+
+  function openCatalogCompareModal() {
+    if (state.compareIds.length < 2) {
+      showCatalogToast("Select at least 2 items with Quick Compare to compare side-by-side.");
+      return;
+    }
+    ensureCatalogCompareUI();
+    const metas = state.compareIds.map(findCatalogItemMeta).filter(Boolean);
+    const wrap = document.getElementById("cat-compare-table-wrap");
+    if (!wrap) return;
+
+    const escHtml = (s) =>
+      String(s == null ? "" : s)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;");
+
+    const headCols = metas
+      .map(
+        (m) =>
+          '<td><div class="cat-compare-prod-head"><img src="' +
+          escHtml(m.img) +
+          '" onerror="this.onerror=null;this.src=\'' +
+          escHtml(m.fallback) +
+          '\'" alt="" /><strong>' +
+          escHtml(m.item.name) +
+          '</strong><button type="button" class="cat-compare-cta is-sm" data-cat-cmp-quote="' +
+          escHtml(m.item.id) +
+          '">+ Add to Quote</button></div></td>'
+      )
+      .join("");
+
+    const makeRow = (label, fn) =>
+      "<tr><th>" + label + "</th>" + metas.map((m) => "<td>" + fn(m) + "</td>").join("") + "</tr>";
+
+    wrap.innerHTML =
+      '<table class="cat-compare-table"><thead><tr><th>Component</th>' +
+      headCols +
+      "</tr></thead><tbody>" +
+      makeRow("Price (LKR)", (m) => "<strong>" + escHtml(formatPriceLKR(m.item.price)) + "</strong>") +
+      makeRow("SKU", (m) => escHtml(m.item.sku || "—")) +
+      makeRow("Condition", (m) => (m.isBrandNew ? "Brand New" : "Used · Grade A Bench-Tested")) +
+      makeRow("Category", (m) => escHtml(m.sectionLabel + (m.categoryName ? " · " + m.categoryName : ""))) +
+      makeRow("Warranty", (m) => escHtml(m.item.warranty || (m.isBrandNew ? "Store Warranty" : "06 Mo. Testing Warranty"))) +
+      makeRow("Availability", (m) => (m.item.inStock === false ? "Out of Stock" : "In Stock · Embilipitiya")) +
+      "</tbody></table>";
+
+    wrap.querySelectorAll("[data-cat-cmp-quote]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const id = btn.getAttribute("data-cat-cmp-quote");
+        const meta = findCatalogItemMeta(id);
+        if (!meta) return;
+        state.quoteList[id] = {
+          item: meta.item,
+          categoryName: meta.categoryName,
+          sectionLabel: meta.sectionLabel,
+          isBrandNew: meta.isBrandNew,
+          quantity: 1,
+        };
+        savePersistedQuote();
+        updateQuoteDrawerUI();
+        renderCatalog();
+        showCatalogToast("Added " + meta.item.name + " to Quote List");
+      });
+    });
+
+    const modal = document.getElementById("catalog-compare-modal");
+    if (modal) modal.hidden = false;
+  }
+
+  function syncCatalogCompareUI(opts) {
+    const addedId = opts && opts.addedId ? opts.addedId : null;
+    const bar = ensureCatalogCompareUI();
+    const countEl = bar.querySelector("#cat-compare-count");
+    const itemsEl = bar.querySelector("#cat-compare-items");
+    if (countEl) countEl.textContent = String(state.compareIds.length);
+
+    if (itemsEl) {
+      itemsEl.innerHTML = "";
+      state.compareIds.forEach((id) => {
+        const meta = findCatalogItemMeta(id);
+        if (!meta) return;
+        const chip = document.createElement("div");
+        chip.className = "cat-compare-item" + (addedId === id ? " is-just-added" : "");
+        const img = document.createElement("img");
+        img.src = meta.img;
+        img.alt = "";
+        img.onerror = () => {
+          img.onerror = null;
+          img.src = meta.fallback;
+        };
+        const nameSpan = document.createElement("span");
+        nameSpan.textContent = meta.item.name;
+        const rmBtn = document.createElement("button");
+        rmBtn.type = "button";
+        rmBtn.setAttribute("aria-label", "Remove from compare");
+        rmBtn.textContent = "×";
+        rmBtn.addEventListener("click", () => {
+          state.compareIds = state.compareIds.filter((x) => x !== id);
+          saveCatalogCompare();
+          syncCatalogCompareUI();
+        });
+        chip.appendChild(img);
+        chip.appendChild(nameSpan);
+        chip.appendChild(rmBtn);
+        itemsEl.appendChild(chip);
+      });
+    }
+
+    if (state.compareIds.length > 0) {
+      if (catCompareHideTimer) {
+        clearTimeout(catCompareHideTimer);
+        catCompareHideTimer = null;
+      }
+      const wasHidden = bar.hidden || !bar.classList.contains("is-visible");
+      if (wasHidden) {
+        bar.hidden = false;
+        bar.setAttribute("aria-hidden", "false");
+        void bar.offsetHeight;
+        bar.classList.add("is-visible");
+      } else if (addedId) {
+        bar.classList.remove("is-bump");
+        void bar.offsetHeight;
+        bar.classList.add("is-bump");
+      }
+    } else {
+      bar.classList.remove("is-visible", "is-bump");
+      bar.setAttribute("aria-hidden", "true");
+      if (catCompareHideTimer) clearTimeout(catCompareHideTimer);
+      catCompareHideTimer = setTimeout(() => {
+        if (state.compareIds.length === 0) bar.hidden = true;
+      }, 280);
+    }
+
+    document.querySelectorAll("[data-cat-compare]").forEach((btn) => {
+      const id = btn.getAttribute("data-cat-compare");
+      const active = state.compareIds.includes(id);
+      btn.classList.toggle("in-compare", active);
+      btn.setAttribute("aria-pressed", String(active));
+      btn.innerHTML =
+        '<span class="material-symbols-outlined">' +
+        (active ? "check" : "compare_arrows") +
+        "</span><span>" +
+        (active ? "In Compare" : "Quick Compare") +
+        "</span>";
+    });
+  }
+
+  function toggleCatalogCompare(id) {
+    if (!id) return;
+    if (state.compareIds.includes(id)) {
+      state.compareIds = state.compareIds.filter((x) => x !== id);
+      saveCatalogCompare();
+      syncCatalogCompareUI();
+      showCatalogToast("Removed from comparison tray.");
+    } else {
+      if (state.compareIds.length >= 4) {
+        showCatalogToast("You can compare up to 4 hardware items at once.");
+        return;
+      }
+      state.compareIds.push(id);
+      saveCatalogCompare();
+      syncCatalogCompareUI({ addedId: id });
+      const meta = findCatalogItemMeta(id);
+      if (meta) {
+        showCatalogToast(
+          state.compareIds.length >= 2
+            ? "Added " + meta.item.name + " to Compare (" + state.compareIds.length + "/4)"
+            : "Added to Compare Tray — pick 1 more item to compare side-by-side"
+        );
+      }
+    }
+  }
+
+  // Keyboard shortcuts: "/" focuses search, "Escape" closes Quote Drawer & Compare Modal
   document.addEventListener("keydown", (e) => {
     if (e.key === "Escape") {
+      closeCatalogCompareModal();
       closeQuoteDrawer();
       return;
     }
@@ -1215,11 +1534,13 @@
 
   // Initial Boot
   loadPersistedQuote();
+  loadCatalogCompare();
   applyViewMode(state.viewMode);
   syncConditionButtonsUI();
   renderSidebar();
   renderCatalog();
   updateQuoteDrawerUI();
+  syncCatalogCompareUI();
   if (urlParams.get("quote") === "open") openQuoteDrawer();
 
   // Re-render automatically when live cloud catalog updates arrive
@@ -1238,5 +1559,6 @@
     renderSidebar();
     renderCatalog();
     updateQuoteDrawerUI();
+    syncCatalogCompareUI();
   });
 })();

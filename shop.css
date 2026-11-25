@@ -208,6 +208,15 @@ button {
   font-size: 14px;
 }
 
+.ne-topbar-auth {
+  color: var(--ne-gold) !important;
+  font-weight: 700 !important;
+}
+
+.ne-topbar-auth:hover {
+  color: #ffffff !important;
+}
+
 /* ── Signature Newegg Navy Sticky Header ─────────────────────────────────── */
 .ne-header {
   position: sticky;
@@ -2148,6 +2157,45 @@ button {
   cursor: pointer;
 }
 
+.ne-quick-compare-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 26px;
+  padding: 0 9px;
+  border-radius: 7px;
+  border: 1px solid var(--ne-border);
+  background: var(--ne-well);
+  color: var(--ne-text-muted);
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background 0.16s ease, border-color 0.16s ease, color 0.16s ease, transform 0.14s ease;
+}
+
+.ne-quick-compare-btn .material-symbols-outlined {
+  font-size: 14px;
+}
+
+.ne-quick-compare-btn:hover {
+  border-color: var(--ne-cyan);
+  color: var(--ne-cyan);
+  background: rgba(56, 189, 248, 0.12);
+  transform: translateY(-1px);
+}
+
+.ne-quick-compare-btn:focus-visible {
+  outline: 2px solid var(--ne-cyan);
+  outline-offset: 2px;
+}
+
+.ne-quick-compare-btn.is-active {
+  background: rgba(247, 147, 29, 0.16);
+  border-color: var(--ne-orange);
+  color: var(--ne-orange);
+}
+
 .ne-card-img-wrap {
   position: relative;
   height: 156px;
@@ -2914,6 +2962,33 @@ button {
   border-top: 2px solid var(--ne-orange);
   padding: 10px 0;
   box-shadow: 0 -10px 28px rgba(0, 0, 0, 0.4);
+  transform: translateY(calc(100% + 18px));
+  opacity: 0;
+  pointer-events: none;
+  will-change: transform, opacity;
+  transition: transform 0.28s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.22s ease;
+}
+
+.ne-compare-bar.is-visible {
+  transform: translateY(0);
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.ne-compare-bar.is-bump {
+  animation: neCompareTrayBump 0.36s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes neCompareTrayBump {
+  0% {
+    transform: translateY(0);
+  }
+  40% {
+    transform: translateY(-4px);
+  }
+  100% {
+    transform: translateY(0);
+  }
 }
 
 .ne-compare-inner {
@@ -2948,6 +3023,22 @@ button {
   font-size: 11.5px;
 }
 
+.ne-compare-pill.is-just-added {
+  animation: neComparePillPop 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+  border-color: var(--ne-orange);
+}
+
+@keyframes neComparePillPop {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.92);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
 .ne-compare-pill img {
   width: 24px;
   height: 24px;
@@ -2959,6 +3050,16 @@ button {
 .ne-compare-pill button {
   color: #fca5a5;
   font-weight: 800;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ne-compare-bar {
+    transition: none;
+  }
+  .ne-compare-bar.is-bump,
+  .ne-compare-pill.is-just-added {
+    animation: none;
+  }
 }
 
 .ne-compare-modal-head {
@@ -4061,6 +4162,26 @@ button {
 }
 
 /* ── Responsive Breakpoints ──────────────────────────────────────────────── */
+@media (max-width: 1480px) {
+  .ne-header-main {
+    gap: 10px;
+  }
+  .ne-deliver-pill {
+    display: none;
+  }
+  .ne-search-pill {
+    min-width: 180px;
+  }
+  .ne-theme-btn .ne-action-label,
+  .ne-quick-search-btn .ne-action-label {
+    display: none;
+  }
+  .ne-theme-btn,
+  .ne-quick-search-btn {
+    padding: 0 9px;
+  }
+}
+
 @media (max-width: 1280px) {
   .ne-hero-bento {
     grid-template-columns: 225px minmax(0, 1fr) 285px;
@@ -4071,6 +4192,19 @@ button {
   }
   .hide-lg {
     display: none;
+  }
+}
+
+@media (max-width: 1240px) {
+  .ne-header-main {
+    flex-wrap: wrap;
+    row-gap: 10px;
+  }
+  .ne-search-pill {
+    order: 3;
+    flex: 1 1 100%;
+    min-width: 100%;
+    max-width: 100%;
   }
 }
 
@@ -4103,6 +4237,15 @@ button {
   .ne-deliver-pill,
   .hide-md {
     display: none;
+  }
+}
+
+@media (max-width: 900px) {
+  .ne-action-label {
+    display: none;
+  }
+  .ne-action-btn {
+    padding: 0 9px;
   }
 }
 

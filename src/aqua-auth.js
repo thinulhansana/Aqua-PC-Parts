@@ -1,5 +1,10 @@
 import { initializeApp } from "firebase/app";
 import {
+  initializeAppCheck,
+  ReCaptchaEnterpriseProvider,
+  getToken as getAppCheckToken,
+} from "firebase/app-check";
+import {
   getAuth,
   GoogleAuthProvider,
   FacebookAuthProvider,
@@ -36,6 +41,74 @@ const googleProvider = new GoogleAuthProvider();
 googleProvider.setCustomParameters({ prompt: "select_account" });
 const facebookProvider = new FacebookAuthProvider();
 facebookProvider.addScope("email");
+
+let appCheckInstance = null;
+let recaptchaInitPromise = null;
+
+async function resolveRecaptchaSiteKey() {
+  const fromConfig = String(firebaseConfig.recaptchaSiteKey || "").trim();
+  if (fromConfig) return fromConfig;
+
+  const controller = typeof AbortController !== "undefined" ? new AbortController() : null;
+  const timer = controller ? setTimeout(() => controller.abort(), 3500) : null;
+  try {
+    const res = await fetch("/api/auth-config", {
+      cache: "no-store",
+      signal: controller ? controller.signal : undefined,
+    });
+    if (!res.ok) return "";
+    const data = await res.json();
+    return String((data && data.recaptchaSiteKey) || "").trim();
+  } catch (_) {
+    return "";
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
+function initRecaptchaEnterprise() {
+  if (recaptchaInitPromise) return recaptchaInitPromise;
+  recaptchaInitPromise = (async () => {
+    const siteKey = await resolveRecaptchaSiteKey();
+    if (!siteKey) return false;
+    try {
+      appCheckInstance = initializeAppCheck(app, {
+        provider: new ReCaptchaEnterpriseProvider(siteKey),
+        isTokenAutoRefreshEnabled: true,
+      });
+      state.recaptchaActive = true;
+      if (state.modalOpen && !state.user) {
+        renderModalContent();
+      }
+      return true;
+    } catch (err) {
+      console.warn("reCAPTCHA Enterprise App Check initialization skipped:", err && err.message ? err.message : err);
+      appCheckInstance = null;
+      state.recaptchaActive = false;
+      return false;
+    }
+  })();
+  return recaptchaInitPromise;
+}
+
+async function ensureRecaptchaVerification() {
+  if (recaptchaInitPromise) {
+    await Promise.race([
+      recaptchaInitPromise.catch(() => false),
+      new Promise((resolve) => setTimeout(resolve, 3500)),
+    ]);
+  }
+  if (!appCheckInstance) return;
+  try {
+    await getAppCheckToken(appCheckInstance, false);
+  } catch (err) {
+    const wrapped = new Error(
+      err && err.message ? err.message : "reCAPTCHA Enterprise verification failed."
+    );
+    wrapped.code = (err && err.code) || "auth/captcha-check-failed";
+    throw wrapped;
+  }
+}
 
 const ADMIN_EMAIL = "thinulhansana0411@gmail.com";
 
@@ -188,7 +261,10 @@ const state = {
   trackResult: null,
   trackNotFound: false,
   trackUnsub: null,
+  recaptchaActive: false,
 };
+
+initRecaptchaEnterprise();
 
 function isAdminUser() {
   return Boolean(
@@ -637,6 +713,20 @@ function detachOrdersListener() {
   state.adminOrders = [];
 }
 
+function isRecaptchaErrorCode(code) {
+  return (
+    code === "auth/captcha-check-failed" ||
+    code === "auth/missing-recaptcha-token" ||
+    code === "auth/invalid-recaptcha-token" ||
+    code === "auth/app-check-token-is-invalid" ||
+    code === "appCheck/recaptcha-error" ||
+    code === "appCheck/fetch-status-error"
+  );
+}
+
+const RECAPTCHA_ERROR_MESSAGE =
+  "reCAPTCHA Enterprise verification failed. Please reload the page and try again (verify this domain is allowlisted for your reCAPTCHA key).";
+
 async function signInWithGoogle() {
   if (state.busy) return;
   state.busy = true;
@@ -645,6 +735,9 @@ async function signInWithGoogle() {
   renderModalContent();
 
   try {
+    if (appCheckInstance) {
+      getAppCheckToken(appCheckInstance, false).catch(() => {});
+    }
     const result = await signInWithPopup(auth, googleProvider);
     const user = result.user;
     await syncUserProfile(user);
@@ -665,7 +758,9 @@ async function signInWithGoogle() {
   } catch (error) {
     state.busy = false;
     const code = error && error.code ? String(error.code) : "";
-    if (code === "auth/popup-closed-by-user" || code === "auth/cancelled-popup-request") {
+    if (isRecaptchaErrorCode(code)) {
+      state.errorMsg = RECAPTCHA_ERROR_MESSAGE;
+    } else if (code === "auth/popup-closed-by-user" || code === "auth/cancelled-popup-request") {
       state.errorMsg = "Sign-in popup was closed. Click Continue with Google to try again.";
     } else if (code === "auth/popup-blocked") {
       state.errorMsg = "Browser blocked the Google sign-in popup. Please allow popups for this site.";
@@ -684,6 +779,9 @@ async function signInWithFacebook() {
   renderModalContent();
 
   try {
+    if (appCheckInstance) {
+      getAppCheckToken(appCheckInstance, false).catch(() => {});
+    }
     const result = await signInWithPopup(auth, facebookProvider);
     const user = result.user;
     await syncUserProfile(user);
@@ -704,7 +802,9 @@ async function signInWithFacebook() {
   } catch (error) {
     state.busy = false;
     const code = error && error.code ? String(error.code) : "";
-    if (code === "auth/popup-closed-by-user" || code === "auth/cancelled-popup-request") {
+    if (isRecaptchaErrorCode(code)) {
+      state.errorMsg = RECAPTCHA_ERROR_MESSAGE;
+    } else if (code === "auth/popup-closed-by-user" || code === "auth/cancelled-popup-request") {
       state.errorMsg = "Facebook sign-in popup was closed. Click Continue with Facebook to try again.";
     } else if (code === "auth/popup-blocked") {
       state.errorMsg = "Browser blocked the Facebook sign-in popup. Please allow popups for this site.";
@@ -723,6 +823,9 @@ async function signInWithFacebook() {
 
 function mapEmailAuthError(error) {
   const code = error && error.code ? String(error.code) : "";
+  if (isRecaptchaErrorCode(code)) {
+    return RECAPTCHA_ERROR_MESSAGE;
+  }
   if (code === "auth/operation-not-allowed") {
     return "Email & Password sign-in is not yet enabled in Firebase Console (Authentication → Sign-in method → Email/Password).";
   }
@@ -760,6 +863,7 @@ async function signInWithEmail(emailRaw, passwordRaw) {
   renderModalContent();
 
   try {
+    await ensureRecaptchaVerification();
     const cred = await signInWithEmailAndPassword(auth, email, password);
     await syncUserProfile(cred.user);
     state.busy = false;
@@ -802,6 +906,7 @@ async function registerWithEmail(nameRaw, emailRaw, passwordRaw) {
   renderModalContent();
 
   try {
+    await ensureRecaptchaVerification();
     const cred = await createUserWithEmailAndPassword(auth, email, password);
     try {
       await updateProfile(cred.user, { displayName });
@@ -837,6 +942,7 @@ async function resetPasswordWithEmail(emailRaw) {
   renderModalContent();
 
   try {
+    await ensureRecaptchaVerification();
     await sendPasswordResetEmail(auth, email);
     state.busy = false;
     state.successMsg = "Password reset link sent to " + email + ". Check your inbox or spam folder.";
@@ -1443,21 +1549,26 @@ function facebookFIcon() {
 
 // ───────── DOM Mounting & Rendering ─────────
 function ensureHeaderSlot() {
-  let slot = document.getElementById("aqua-auth-slot");
-  if (slot) return slot;
-
   const neActions = document.querySelector(".ne-header-actions");
   const stdActions = document.querySelector(".header-actions");
   const s3dActions = document.querySelector(".s3d-corner-right");
   const container = neActions || stdActions || s3dActions;
-  if (!container) return null;
 
-  slot = document.createElement("div");
-  slot.id = "aqua-auth-slot";
-  slot.className = neActions ? "aqua-auth-slot is-ne" : "aqua-auth-slot is-std";
+  let slot = document.getElementById("aqua-auth-slot");
+  if (!slot) {
+    if (!container) return null;
+    slot = document.createElement("div");
+    slot.id = "aqua-auth-slot";
+    slot.className = neActions ? "aqua-auth-slot is-ne" : "aqua-auth-slot is-std";
+    const cartBtn = container.querySelector("#cart-open");
+    if (cartBtn) {
+      container.insertBefore(slot, cartBtn);
+    } else {
+      container.appendChild(slot);
+    }
+  }
 
-  const cartBtn = container.querySelector("#cart-open");
-  if (!document.getElementById("aqua-track-open-btn")) {
+  if (container && !document.getElementById("aqua-track-open-btn")) {
     const trackBtn = document.createElement("button");
     trackBtn.type = "button";
     trackBtn.id = "aqua-track-open-btn";
@@ -1468,17 +1579,13 @@ function ensureHeaderSlot() {
       '<span class="material-symbols-outlined">local_shipping</span>' +
       '<span class="aqua-track-btn-label">Track Order</span>';
     trackBtn.addEventListener("click", () => openTrackOrderModal());
-    if (cartBtn) {
-      container.insertBefore(trackBtn, cartBtn);
+    if (slot.parentNode === container) {
+      container.insertBefore(trackBtn, slot);
     } else {
-      container.appendChild(trackBtn);
+      const cartBtn = container.querySelector("#cart-open");
+      if (cartBtn) container.insertBefore(trackBtn, cartBtn);
+      else container.appendChild(trackBtn);
     }
-  }
-
-  if (cartBtn) {
-    container.insertBefore(slot, cartBtn);
-  } else {
-    container.appendChild(slot);
   }
 
   const offcanvasLinks = document.querySelector(".ne-offcanvas-quicklinks");
@@ -1523,6 +1630,12 @@ function renderHeaderSlot() {
       ? "<span>👤 " + esc(getFirstName(state.user, state.profile)) + " · Orders &amp; Portal</span>"
       : "<span>🔐 Client Sign In / Order Tracker</span>";
   }
+
+  document.querySelectorAll(".ne-topbar-auth[data-aqua-open-auth]").forEach((el) => {
+    el.textContent = state.user
+      ? "Account (" + getFirstName(state.user, state.profile) + ")"
+      : "Sign In / Register";
+  });
 
   if (!state.user) {
     slot.innerHTML =
@@ -1846,6 +1959,11 @@ function renderModalContent() {
       '<div class="aqua-perk"><span class="material-symbols-outlined">receipt_long</span><div><strong>PDF Invoices</strong><small>SKU &amp; warranty slip</small></div></div>' +
       '<div class="aqua-perk"><span class="material-symbols-outlined">cloud_done</span><div><strong>Cloud Quotes</strong><small>Sync builds anywhere</small></div></div>' +
       "</div>" +
+      (state.recaptchaActive
+        ? '<p class="aqua-recaptcha-note">Protected by reCAPTCHA Enterprise &middot; ' +
+          '<a href="https://policies.google.com/privacy" target="_blank" rel="noopener noreferrer">Privacy</a> &middot; ' +
+          '<a href="https://policies.google.com/terms" target="_blank" rel="noopener noreferrer">Terms</a></p>'
+        : "") +
       '<div class="aqua-auth-foot">' +
       '<a href="https://aquapcsolutions.yyth.workers.dev/" target="_blank" rel="noopener noreferrer">Aqua PC Solutions Main Site ↗</a>' +
       '<a href="./admin.html" class="aqua-staff-link">Store Admin Console →</a>' +
@@ -2707,8 +2825,15 @@ function renderTrackModal() {
   }
 }
 
-// Global click-outside, delegated track trigger, and ESC handlers
+// Global click-outside, delegated auth/track triggers, and ESC handlers
 document.addEventListener("click", (e) => {
+  const authTrigger = e.target && e.target.closest ? e.target.closest("[data-aqua-open-auth]") : null;
+  if (authTrigger) {
+    e.preventDefault();
+    const reqMode = authTrigger.getAttribute("data-aqua-open-auth") || "signin";
+    openModal(state.user ? "orders" : reqMode === "register" ? "register" : "signin");
+    return;
+  }
   const trackTrigger = e.target && e.target.closest ? e.target.closest("[data-aqua-open-track]") : null;
   if (trackTrigger) {
     e.preventDefault();

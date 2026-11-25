@@ -198,6 +198,23 @@ app.get("/api/maps/config", (_req, res) => {
   });
 });
 
+// ───────── Auth & reCAPTCHA Enterprise Public Config ─────────
+app.get("/api/auth-config", (_req, res) => {
+  res.setHeader("Cache-Control", "no-store");
+  const recaptchaSiteKey = String(
+    process.env.RECAPTCHA_ENTERPRISE_SITE_KEY ||
+      process.env.VITE_RECAPTCHA_ENTERPRISE_SITE_KEY ||
+      process.env.RECAPTCHA_SITE_KEY ||
+      ""
+  ).trim();
+  res.json({
+    ok: true,
+    recaptchaEnabled: Boolean(recaptchaSiteKey),
+    recaptchaSiteKey,
+  });
+});
+
+
 // ───────── Server-Side Gemini Multi-Turn Chatbot (Rose AI) ─────────
 app.post("/api/gemini/chat", async (req, res) => {
   res.setHeader("Cache-Control", "no-store");
