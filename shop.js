@@ -380,31 +380,62 @@
       .join("");
 
     const quoteNo = "AQP-" + new Date().toISOString().slice(0, 10).replace(/-/g, "") + "-" + Math.floor(100 + Math.random() * 900);
-    const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Quotation ${quoteNo} - Aqua PC Parts</title>
-<style>body{font-family:Arial,sans-serif;padding:32px;color:#0f172a;max-width:860px;margin:auto}
-.top{display:flex;justify-content:space-between;border-bottom:3px solid #ff6600;padding-bottom:16px;margin-bottom:20px}
-h1{margin:0;color:#071138;font-size:24px}small{color:#64748b}
-table{width:100%;border-collapse:collapse;margin-top:14px}
-th,td{border:1px solid #cbd5e1;padding:10px;text-align:left;font-size:13.5px}
-th{background:#071138;color:#ffc000}
-.tot{margin-top:18px;text-align:right;font-size:18px}
-.note{margin-top:24px;padding:12px;background:#fff7ed;border-left:4px solid #ff6600;font-size:12.5px;color:#475569}
-@media print{.noprint{display:none}}</style></head><body>
-<div class="top"><div style="display:flex;align-items:center;gap:14px"><img src="assets/logo.jpg" alt="Aqua PC Parts" style="width:54px;height:54px;border-radius:10px;object-fit:cover" /><div><h1>AQUA PC PARTS</h1><div>Aqua PC Solutions · Embilipitiya, Sri Lanka</div><div>Tel / WhatsApp: +94 78 819 4535</div></div></div>
-<div style="text-align:right"><strong>QUOTATION #${quoteNo}</strong><div>Date: ${new Date().toLocaleDateString("en-LK")}</div></div></div>
-<table><thead><tr><th>#</th><th>Item &amp; Warranty</th><th>Condition</th><th>Qty</th><th>Unit Price</th><th>Line Total</th></tr></thead><tbody>${rows}</tbody></table>
-<div class="tot"><strong>Estimated Total: ${fmtLKR(total)}${unpriced ? " (+ " + unpriced + " item TBC)" : ""}</strong></div>
-<div class="note">Used hardware is 24-hour bench-tested and includes a 06-month testing warranty. Prices are valid for 48 hours subject to stock confirmation on WhatsApp (+94 78 819 4535).</div>
-<p class="noprint" style="margin-top:20px"><button onclick="window.print()" style="padding:10px 18px;background:#ff6600;color:#ffffff;border:0;border-radius:6px;cursor:pointer;font-weight:bold">Print / Save as PDF</button></p>
-</body></html>`;
-    const win = window.open("", "_blank");
-    if (!win) {
-      toast("Allow pop-ups to open printable quotation.");
-      return;
+    let modal = document.getElementById("ne-quote-print-modal");
+    if (!modal) {
+      modal = document.createElement("div");
+      modal.id = "ne-quote-print-modal";
+      modal.className = "ne-quote-print-overlay";
+      modal.setAttribute("role", "dialog");
+      modal.setAttribute("aria-modal", "true");
+      modal.setAttribute("aria-label", "Printable Official Quotation");
+      modal.addEventListener("click", (e) => {
+        if (e.target === modal) {
+          modal.hidden = true;
+          document.body.classList.remove("ne-printing-quote");
+        }
+      });
+      document.body.appendChild(modal);
     }
-    win.document.open();
-    win.document.write(html);
-    win.document.close();
+
+    modal.innerHTML =
+      '<div class="ne-quote-print-sheet">' +
+      '<div class="ne-quote-print-toolbar no-print">' +
+      '<strong>Official Quotation #' + esc(quoteNo) + "</strong>" +
+      '<div class="ne-quote-print-actions">' +
+      '<button type="button" class="ne-btn-primary" id="ne-quote-print-go">Print / Save PDF</button>' +
+      '<button type="button" class="ne-btn-ghost" id="ne-quote-print-close">Close</button>' +
+      "</div>" +
+      "</div>" +
+      '<div class="ne-quote-paper">' +
+      '<div class="ne-qp-top">' +
+      '<div class="ne-qp-brand"><img src="assets/logo.jpg" alt="Aqua PC Parts" /><div><h1>AQUA PC PARTS</h1><div>Aqua PC Solutions · Embilipitiya, Sri Lanka</div><div>Tel / WhatsApp: +94 78 819 4535</div></div></div>' +
+      '<div class="ne-qp-meta"><strong>QUOTATION #' + esc(quoteNo) + "</strong><div>Date: " + esc(new Date().toLocaleDateString("en-LK")) + "</div></div>" +
+      "</div>" +
+      '<table class="ne-qp-table"><thead><tr><th>#</th><th>Item &amp; Warranty</th><th>Condition</th><th>Qty</th><th>Unit Price</th><th>Line Total</th></tr></thead><tbody>' +
+      rows +
+      "</tbody></table>" +
+      '<div class="ne-qp-tot"><strong>Estimated Total: ' +
+      esc(fmtLKR(total)) +
+      (unpriced ? " (+ " + unpriced + " item TBC)" : "") +
+      "</strong></div>" +
+      '<div class="ne-qp-note">Used hardware is 24-hour bench-tested and includes a 06-month testing warranty. Prices are valid for 48 hours subject to stock confirmation on WhatsApp (+94 78 819 4535).</div>' +
+      "</div>" +
+      "</div>";
+
+    modal.hidden = false;
+    document.body.classList.add("ne-printing-quote");
+
+    const closeBtn = modal.querySelector("#ne-quote-print-close");
+    if (closeBtn) {
+      closeBtn.addEventListener("click", () => {
+        modal.hidden = true;
+        document.body.classList.remove("ne-printing-quote");
+      });
+    }
+    const goBtn = modal.querySelector("#ne-quote-print-go");
+    if (goBtn) {
+      goBtn.addEventListener("click", () => window.print());
+    }
   }
 
   function drawer(open) {
@@ -481,6 +512,7 @@ th{background:#071138;color:#ffc000}
         .join("");
 
       if (compareIds.length > 0) {
+        document.body.classList.add("has-compare-tray");
         if (compareHideTimer) {
           clearTimeout(compareHideTimer);
           compareHideTimer = null;
@@ -498,6 +530,7 @@ th{background:#071138;color:#ffc000}
           bar.classList.add("is-bump");
         }
       } else {
+        document.body.classList.remove("has-compare-tray");
         bar.classList.remove("is-visible", "is-bump");
         bar.setAttribute("aria-hidden", "true");
         if (compareHideTimer) clearTimeout(compareHideTimer);

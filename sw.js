@@ -1,4 +1,4 @@
-const CACHE_VERSION = "aqua-pc-parts-v4";
+const CACHE_VERSION = "aqua-pc-parts-v5";
 const SHELL_ASSETS = [
   "/",
   "/index.html",
@@ -12,7 +12,6 @@ const SHELL_ASSETS = [
   "/auth-panel.css",
   "/catalog.js",
   "/part-images.js",
-  "/live-sync.js",
   "/shop.js",
   "/app.js",
   "/aqua-auth.bundle.js",

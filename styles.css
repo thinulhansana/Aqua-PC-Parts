@@ -5041,6 +5041,16 @@ body[data-page="new"] .section-icon {
   transform: translateX(-50%) translateY(0);
 }
 
+body.has-compare-tray .cat-compare-toast {
+  bottom: 92px;
+}
+
+body.has-compare-tray .wa-float,
+body.has-compare-tray .floating-wa,
+body.has-compare-tray .back-to-top {
+  transform: translateY(-74px);
+}
+
 @media (prefers-reduced-motion: reduce) {
   .cat-compare-bar,
   .cat-compare-toast {
@@ -5051,5 +5061,6 @@ body[data-page="new"] .section-icon {
     animation: none;
   }
 }
+
 
 

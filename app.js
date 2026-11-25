@@ -1450,6 +1450,7 @@
     }
 
     if (state.compareIds.length > 0) {
+      document.body.classList.add("has-compare-tray");
       if (catCompareHideTimer) {
         clearTimeout(catCompareHideTimer);
         catCompareHideTimer = null;
@@ -1466,6 +1467,7 @@
         bar.classList.add("is-bump");
       }
     } else {
+      document.body.classList.remove("has-compare-tray");
       bar.classList.remove("is-visible", "is-bump");
       bar.setAttribute("aria-hidden", "true");
       if (catCompareHideTimer) clearTimeout(catCompareHideTimer);
