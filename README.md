@@ -4,7 +4,7 @@ Standalone static website for **Aqua PC Parts** (`aquapcparts`), the dedicated P
 
 ## Features
 
-- **330+ Grade-A Tested PC Parts** across 9 hardware departments (`Monitors`, `VGA Cards`, `Processors`, `Motherboards`, `Storage`, `RAM`, `Power Supply`, `Cooling`, `Cables & Accessories`)
+- **1,731 PC Parts** (310 Grade-A Tested Used + 1,421 Brand New) across all hardware departments (`Monitors`, `VGA Cards`, `Processors`, `Motherboards`, `Storage`, `RAM`, `Power Supply`, `Cooling`, `Cables & Accessories`, and more)
 - **Transparent LKR Pricing** (`retailPrice + Rs. 2,000`) with price sorting (`Low -> High`, `High -> Low`, `Name A -> Z`) and `Priced Items Only` filtering
 - **Per-Item WhatsApp Customizer**: quantity stepper, live total calculation, inquiry type (`Order Now`, `Check Availability`, `Compatibility Help`, `With Lab Install`), delivery/pickup option, custom note, and live message preview
 - **Multi-Item Quote List**: bundle multiple parts into a single pre-formatted WhatsApp order

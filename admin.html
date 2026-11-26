@@ -1,8 +1,10 @@
 <!DOCTYPE html>
 <html lang="en" data-theme="dark">
+
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="referrer" content="no-referrer" />
   <title>Store Admin Panel — Price &amp; Inventory Manager | Aqua PC Parts</title>
   <link rel="icon" type="image/jpeg" href="assets/logo.jpg" />
   <link rel="apple-touch-icon" href="assets/logo.jpg" />
@@ -11,15 +13,13 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link
     href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Syne:wght@700;800&display=swap"
-    rel="stylesheet"
-  />
-  <link
-    rel="stylesheet"
-    href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200"
-  />
+    rel="stylesheet" />
+  <link rel="stylesheet"
+    href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" />
   <link rel="stylesheet" href="styles.css" />
   <link rel="stylesheet" href="auth-panel.css" />
 </head>
+
 <body data-page="admin">
   <!-- Ambient Studio Background -->
   <div class="ambient-bg" aria-hidden="true">
@@ -45,19 +45,14 @@
       </div>
 
       <p class="auth-desc">
-        Enter your store admin passcode to update LKR prices, add or remove items, adjust bulk markups, and publish live to <strong>aquapcparts.pages.dev</strong>.
+        Enter your store admin passcode to update LKR prices, add or remove items, adjust bulk markups, and publish live
+        to <strong>aquapcparts.pages.dev</strong>.
       </p>
 
       <form id="admin-login-form" class="auth-form" autocomplete="off">
         <label for="admin-passcode-input" class="field-label">Admin Passcode</label>
         <div class="auth-input-row">
-          <input
-            id="admin-passcode-input"
-            type="password"
-            placeholder="Enter admin passcode..."
-            required
-            autofocus
-          />
+          <input id="admin-passcode-input" type="password" placeholder="Enter admin passcode..." required autofocus />
           <button type="submit" class="lp-btn lp-btn-primary">
             <span>Unlock Admin</span>
             <span class="material-symbols-outlined">lock_open</span>
@@ -100,29 +95,39 @@
 
         <!-- Storefront Preview Links -->
         <nav class="page-nav" aria-label="View Storefront Pages">
-          <a href="./index.html" target="_blank" class="page-nav-link" title="Open Storefront in new tab">
+          <a href="./index.html" target="_blank" class="page-nav-link" title="Open Home Offers in new tab">
             <span class="material-symbols-outlined">storefront</span>
-            <span>Storefront ↗</span>
+            <span>Home ↗</span>
+          </a>
+          <a href="./deals.html" target="_blank" class="page-nav-link" title="Open Hot Deals in new tab">
+            <span class="material-symbols-outlined">local_fire_department</span>
+            <span>Deals ↗</span>
           </a>
           <a href="./used-parts.html" target="_blank" class="page-nav-link" title="Open Used Parts in new tab">
             <span class="material-symbols-outlined">verified</span>
-            <span>Used (<span id="nav-admin-used">358</span>) ↗</span>
+            <span>Used (<span id="nav-admin-used">310</span>) ↗</span>
           </a>
-          <a href="./brand-new-parts.html" target="_blank" class="page-nav-link new-tab" title="Open Brand New Parts in new tab">
+          <a href="./brand-new-parts.html" target="_blank" class="page-nav-link new-tab"
+            title="Open Brand New Parts in new tab">
             <span class="material-symbols-outlined">inventory_2</span>
-            <span>Brand New (<span id="nav-admin-new">34</span>) ↗</span>
+            <span>Brand New (<span id="nav-admin-new">1421</span>) ↗</span>
           </a>
-          <a href="https://aquapc3dportal.pages.dev/" target="_blank" class="page-nav-link" title="Open 3D PC Builder in new tab">
+          <a href="./catalog.html" target="_blank" class="page-nav-link" title="Open Full Catalog in new tab">
+            <span class="material-symbols-outlined">grid_view</span>
+            <span>Catalog ↗</span>
+          </a>
+          <a href="./pc-builder.html" target="_blank" class="page-nav-link" title="Open PC Builder in new tab">
+            <span class="material-symbols-outlined">construction</span>
+            <span>Builder ↗</span>
+          </a>
+          <a href="https://aquapc3dportal.pages.dev/" target="_blank" class="page-nav-link"
+            title="Open 3D PC Builder in new tab">
             <span class="material-symbols-outlined">view_in_ar</span>
-            <span>3D Builder ↗</span>
+            <span>3D Studio ↗</span>
           </a>
           <a href="./contact.html" target="_blank" class="page-nav-link" title="Open Contact Us in new tab">
             <span class="material-symbols-outlined">support_agent</span>
             <span>Contact ↗</span>
-          </a>
-          <a href="https://aquapcsolutions.yyth.workers.dev/" target="_blank" class="page-nav-link" title="Open Main Site in new tab">
-            <span class="material-symbols-outlined">public</span>
-            <span>Main Site ↗</span>
           </a>
         </nav>
 
@@ -138,16 +143,19 @@
             <span>Save &amp; Publish Live</span>
           </button>
 
-          <button id="btn-download-catalog" type="button" class="btn-main-site" title="Download updated catalog.js file">
+          <button id="btn-download-catalog" type="button" class="btn-main-site"
+            title="Download updated catalog.js file">
             <span class="material-symbols-outlined">download</span>
             <span class="hide-mobile">Download catalog.js</span>
           </button>
 
-          <button id="theme-toggle-btn" type="button" class="btn-icon" title="Toggle Dark / Light Theme" aria-label="Toggle color theme">
+          <button id="theme-toggle-btn" type="button" class="btn-icon" title="Toggle Dark / Light Theme"
+            aria-label="Toggle color theme">
             <span id="theme-toggle-icon" class="material-symbols-outlined">light_mode</span>
           </button>
 
-          <button id="btn-lock-admin" type="button" class="btn-icon" title="Lock Admin Session" aria-label="Lock Admin Session">
+          <button id="btn-lock-admin" type="button" class="btn-icon" title="Lock Admin Session"
+            aria-label="Lock Admin Session">
             <span class="material-symbols-outlined">logout</span>
           </button>
         </div>
@@ -162,8 +170,8 @@
             <span class="kpi-label">USED PARTS INVENTORY</span>
             <span class="material-symbols-outlined kpi-icon cyan">verified</span>
           </div>
-          <div class="kpi-val"><strong id="kpi-used-items">358</strong> <span>items</span></div>
-          <span class="kpi-sub" id="kpi-used-depts">Across 10 hardware departments</span>
+          <div class="kpi-val"><strong id="kpi-used-items">310</strong> <span>items</span></div>
+          <span class="kpi-sub" id="kpi-used-depts">Across 12 hardware departments</span>
         </div>
 
         <div class="admin-kpi-card">
@@ -171,8 +179,8 @@
             <span class="kpi-label">BRAND NEW INVENTORY</span>
             <span class="material-symbols-outlined kpi-icon emerald">inventory_2</span>
           </div>
-          <div class="kpi-val"><strong id="kpi-new-items">34</strong> <span>SKUs</span></div>
-          <span class="kpi-sub" id="kpi-new-depts">Across 7 brand-new departments</span>
+          <div class="kpi-val"><strong id="kpi-new-items">1421</strong> <span>SKUs</span></div>
+          <span class="kpi-sub" id="kpi-new-depts">Across 18 brand-new departments</span>
         </div>
 
         <div class="admin-kpi-card">
@@ -208,6 +216,10 @@
           <span class="material-symbols-outlined">Price_change</span>
           <span>3. Bulk Price Markup &amp; Backups</span>
         </button>
+        <button type="button" class="admin-tab-btn" data-admin-tab="meta" role="tab" aria-selected="false">
+          <span class="material-symbols-outlined">campaign</span>
+          <span>4. Meta FB &amp; IG Promoter</span>
+        </button>
       </div>
 
       <!-- ───────────────────────────────────────────────────────────────────
@@ -219,10 +231,10 @@
             <!-- Division Switcher -->
             <div class="admin-seg-group" role="group" aria-label="Filter by Store Division">
               <button type="button" class="admin-seg-btn active" data-div-filter="used">
-                Used Parts (<span id="seg-used-count">358</span>)
+                Used Parts (<span id="seg-used-count">310</span>)
               </button>
               <button type="button" class="admin-seg-btn" data-div-filter="new">
-                Brand New (<span id="seg-new-count">34</span>)
+                Brand New Parts (<span id="seg-new-count">1421</span>)
               </button>
               <button type="button" class="admin-seg-btn" data-div-filter="all">
                 All Divisions
@@ -259,19 +271,16 @@
             <!-- Search Input -->
             <div class="admin-search-box">
               <span class="material-symbols-outlined">search</span>
-              <input
-                id="admin-search-input"
-                type="search"
-                placeholder="Search item name, model, or price..."
-                autocomplete="off"
-              />
+              <input id="admin-search-input" type="search" placeholder="Search item name, model, or price..."
+                autocomplete="off" />
             </div>
           </div>
 
           <div class="admin-toolbar-meta">
             <span id="admin-showing-label">Showing 0 items</span>
             <div class="admin-quick-legend">
-              <span>Tip: Edit any name or price directly in the table, or click <b>+750</b> / <b>+2000</b> to apply markup over Base Price. Press <b>Save &amp; Publish Live</b> when done.</span>
+              <span>Tip: Edit any name or price directly in the table, or click <b>+750</b> / <b>+2000</b> to apply
+                markup over Base Price. Press <b>Save &amp; Publish Live</b> when done.</span>
             </div>
           </div>
         </div>
@@ -313,8 +322,8 @@
                 <div class="form-field">
                   <label for="add-division">Store Division</label>
                   <select id="add-division" class="sort-select">
-                    <option value="used">Used Parts Division</option>
-                    <option value="new">Brand New Division</option>
+                    <option value="used">Used Parts</option>
+                    <option value="new">Brand New Parts</option>
                   </select>
                 </div>
 
@@ -332,37 +341,21 @@
 
                 <div class="form-field">
                   <label for="add-new-category">Or Create New Subcategory (Optional)</label>
-                  <input
-                    id="add-new-category"
-                    type="text"
-                    class="note-input"
-                    placeholder="e.g. RTX 40-Series Cards"
-                  />
+                  <input id="add-new-category" type="text" class="note-input" placeholder="e.g. RTX 40-Series Cards" />
                 </div>
               </div>
 
               <div class="form-field">
                 <label for="add-item-name">Item Name / Model Description *</label>
-                <input
-                  id="add-item-name"
-                  type="text"
-                  class="note-input"
-                  placeholder="e.g. RTX 3060 12GB GDDR6 Dual Fan"
-                  required
-                />
+                <input id="add-item-name" type="text" class="note-input" placeholder="e.g. RTX 3060 12GB GDDR6 Dual Fan"
+                  required />
               </div>
 
               <div class="form-row-3">
                 <div class="form-field">
                   <label for="add-base-price">Base / Retail Price (Rs.)</label>
-                  <input
-                    id="add-base-price"
-                    type="number"
-                    min="0"
-                    step="10"
-                    class="note-input"
-                    placeholder="e.g. 85000"
-                  />
+                  <input id="add-base-price" type="number" min="0" step="10" class="note-input"
+                    placeholder="e.g. 85000" />
                 </div>
 
                 <div class="form-field">
@@ -376,27 +369,16 @@
 
                 <div class="form-field">
                   <label for="add-final-price">Final Selling Price (Rs.)</label>
-                  <input
-                    id="add-final-price"
-                    type="number"
-                    min="0"
-                    step="10"
-                    class="note-input"
-                    placeholder="Leave empty for Inquiry"
-                  />
+                  <input id="add-final-price" type="number" min="0" step="10" class="note-input"
+                    placeholder="Leave empty for Inquiry" />
                 </div>
               </div>
 
               <div class="form-row-2">
                 <div class="form-field">
                   <label for="add-warranty">Warranty Label</label>
-                  <input
-                    id="add-warranty"
-                    type="text"
-                    class="note-input"
-                    placeholder="06 Months Testing Warranty"
-                    value="06 Months Testing Warranty"
-                  />
+                  <input id="add-warranty" type="text" class="note-input" placeholder="06 Months Testing Warranty"
+                    value="06 Months Testing Warranty" />
                 </div>
 
                 <div class="form-field">
@@ -420,7 +402,8 @@
             <span class="section-tag">FAST PRICE-SHEET BATCH IMPORTER</span>
             <h2>Paste Multiple Items at Once</h2>
             <p class="admin-card-sub">
-              Paste lines in the format <code>Item Name | Price</code> (one item per line). Choose a markup (`+0`, `+750`, or `+2000`) to automatically compute the selling price for every pasted item!
+              Paste lines in the format <code>Item Name | Price</code> (one item per line). Choose a markup (`+0`,
+              `+750`, or `+2000`) to automatically compute the selling price for every pasted item!
             </p>
 
             <form id="admin-batch-form" class="admin-form">
@@ -435,18 +418,15 @@
                 </div>
                 <div class="form-field">
                   <label>Target Department &amp; Subcategory</label>
-                  <div class="admin-hint-pill">Uses the Division, Department &amp; Subcategory selected on the left</div>
+                  <div class="admin-hint-pill">Uses the Division, Department &amp; Subcategory selected on the left
+                  </div>
                 </div>
               </div>
 
               <div class="form-field">
                 <label for="batch-lines">Paste Items (Format: <code>Item Name | RetailPrice</code>)</label>
-                <textarea
-                  id="batch-lines"
-                  rows="8"
-                  class="note-input admin-textarea"
-                  placeholder="USB GAMING MOUSE G102 | 600&#10;GAMING KEYBOARD &amp; MOUSE GTX360 | 1950&#10;24&quot; FRAMELESS FHD IPS | 20350"
-                ></textarea>
+                <textarea id="batch-lines" rows="8" class="note-input admin-textarea"
+                  placeholder="USB GAMING MOUSE G102 | 600&#10;GAMING KEYBOARD &amp; MOUSE GTX360 | 1950&#10;24&quot; FRAMELESS FHD IPS | 20350"></textarea>
               </div>
 
               <button type="submit" class="lp-btn lp-btn-emerald">
@@ -468,15 +448,16 @@
             <span class="section-tag">BULK PRICE &amp; MARKUP ENGINE</span>
             <h2>Bulk Adjust Prices Across Catalog</h2>
             <p class="admin-card-sub">
-              Update dozens or hundreds of prices in one click — apply a fixed LKR markup over Base Retail Price, add/subtract a flat LKR amount, or adjust by percentage.
+              Update dozens or hundreds of prices in one click — apply a fixed LKR markup over Base Retail Price,
+              add/subtract a flat LKR amount, or adjust by percentage.
             </p>
 
             <form id="admin-bulk-price-form" class="admin-form">
               <div class="form-field">
                 <label for="bulk-target">1. Select Target Items</label>
                 <select id="bulk-target" class="sort-select">
-                  <option value="used">All Used Parts (358 Items)</option>
-                  <option value="new">All Brand New Parts (34 Items)</option>
+                  <option value="used">All Used Parts (310 Items)</option>
+                  <option value="new">All Brand New Parts (1,421 Items)</option>
                   <option value="filtered">Currently Filtered Items in Tab 1</option>
                 </select>
               </div>
@@ -492,14 +473,7 @@
 
               <div class="form-field">
                 <label for="bulk-amount">3. Amount (LKR or % — use negative number to reduce)</label>
-                <input
-                  id="bulk-amount"
-                  type="number"
-                  step="any"
-                  value="2000"
-                  class="note-input"
-                  required
-                />
+                <input id="bulk-amount" type="number" step="any" value="2000" class="note-input" required />
               </div>
 
               <button type="submit" class="lp-btn lp-btn-primary">
@@ -514,7 +488,8 @@
             <span class="section-tag">EXPORT, IMPORT &amp; SECURITY</span>
             <h2>Backups, File Export &amp; Admin Passcode</h2>
             <p class="admin-card-sub">
-              Download your updated catalog as a drop-in <code>catalog.js</code> file, CSV spreadsheet, or JSON backup, or change your admin passcode.
+              Download your updated catalog as a drop-in <code>catalog.js</code> file, CSV spreadsheet, or JSON backup,
+              or change your admin passcode.
             </p>
 
             <div class="admin-backup-grid">
@@ -546,14 +521,8 @@
               <div class="form-field">
                 <label for="new-admin-passcode">Change Admin Passcode</label>
                 <div class="auth-input-row">
-                  <input
-                    id="new-admin-passcode"
-                    type="password"
-                    class="note-input"
-                    placeholder="New passcode (min 4 chars)..."
-                    minlength="4"
-                    required
-                  />
+                  <input id="new-admin-passcode" type="password" class="note-input"
+                    placeholder="New passcode (min 4 chars)..." minlength="4" required />
                   <button type="submit" class="btn-quote-cart">
                     <span class="material-symbols-outlined">key</span>
                     <span>Update Passcode</span>
@@ -567,12 +536,168 @@
             <div class="admin-reset-row">
               <div>
                 <strong>Reset to Factory Default Catalog</strong>
-                <p>Clears any custom edits and restores the baseline 358 Used + 34 Brand New items.</p>
+                <p>Clears any custom edits and restores the baseline 310 Used + 1,421 Brand New items.</p>
               </div>
               <button type="button" id="btn-reset-factory" class="btn-danger-outline">
                 <span class="material-symbols-outlined">restart_alt</span>
                 <span>Reset Default</span>
               </button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ───────────────────────────────────────────────────────────────────
+           TAB 4: META FACEBOOK PAGE & INSTAGRAM PROMOTER
+           ─────────────────────────────────────────────────────────────────── -->
+      <section id="admin-panel-meta" class="admin-panel-section hidden">
+        <div class="admin-two-col">
+          <!-- Meta Account & Graph API Connector -->
+          <div class="admin-box-card">
+            <span class="section-tag">META GRAPH API &amp; COMMERCE SYNC</span>
+            <h2>Connect Facebook Page &amp; Instagram</h2>
+            <p class="admin-card-sub">
+              Link your Meta Page / User Access Token to publish directly to <strong>@aquapcsolutions</strong> on Facebook &amp; Instagram, or copy your live Meta Commerce Catalog feed URL (1,731 products + 5 services).
+            </p>
+
+            <div class="admin-hint-pill" id="meta-conn-badge" style="margin-bottom: 14px;">
+              Checking Meta connection status...
+            </div>
+
+            <form id="meta-connect-form" class="admin-form">
+              <div class="form-field">
+                <label for="meta-access-token">Meta Page / User Access Token</label>
+                <input id="meta-access-token" type="password" class="note-input" placeholder="Paste Meta Graph API Access Token (EAA...)" autocomplete="off" />
+              </div>
+
+              <div class="form-row-2">
+                <div class="form-field">
+                  <label for="meta-page-id">Facebook Page ID</label>
+                  <input id="meta-page-id" type="text" class="note-input" placeholder="Auto-detected or @aquapcsolutions ID" />
+                </div>
+                <div class="form-field">
+                  <label for="meta-ig-id">Instagram Business Account ID</label>
+                  <input id="meta-ig-id" type="text" class="note-input" placeholder="Auto-detected linked IG Business ID" />
+                </div>
+              </div>
+
+              <button type="submit" id="btn-meta-connect" class="lp-btn lp-btn-primary">
+                <span class="material-symbols-outlined">link</span>
+                <span>Connect &amp; Auto-Detect FB/IG Accounts</span>
+              </button>
+            </form>
+
+            <hr class="admin-divider" />
+
+            <div class="admin-backup-grid">
+              <button type="button" id="btn-copy-meta-feed" class="btn-main-site">
+                <span class="material-symbols-outlined">rss_feed</span>
+                <span>Copy Live Meta Catalog Feed URL</span>
+              </button>
+              <a href="https://business.facebook.com/commerce" target="_blank" rel="noopener" class="btn-main-site">
+                <span class="material-symbols-outlined">storefront</span>
+                <span>Meta Commerce Manager ↗</span>
+              </a>
+              <a href="https://www.facebook.com/aquapcsolutions" target="_blank" rel="noopener" class="btn-main-site">
+                <span class="material-symbols-outlined">thumb_up</span>
+                <span>FB Page (@aquapcsolutions) ↗</span>
+              </a>
+              <a href="https://www.instagram.com/aquapcsolutions/" target="_blank" rel="noopener" class="btn-main-site">
+                <span class="material-symbols-outlined">photo_camera</span>
+                <span>Instagram (@aquapcsolutions) ↗</span>
+              </a>
+            </div>
+          </div>
+
+          <!-- 1-Click Website & Product Drop Campaign Publisher -->
+          <div class="admin-box-card">
+            <span class="section-tag">1-CLICK CAMPAIGN PUBLISHER</span>
+            <h2>Promote Websites &amp; Hardware Drops</h2>
+            <p class="admin-card-sub">
+              Choose a ready-to-launch campaign promoting all 3 Aqua PC websites or pick any catalog product, then publish via Graph API or open directly in Meta Business Suite.
+            </p>
+
+            <div class="admin-form">
+              <div class="form-row-2">
+                <div class="form-field">
+                  <label for="meta-campaign-template">Campaign Template</label>
+                  <select id="meta-campaign-template" class="sort-select">
+                    <option value="ecosystem">🚀 All 3 Websites Launch (Main + Store + 3D Studio)</option>
+                    <option value="product-promo">🎬 24s Product + Logo Promo (Reels / Feed Video)</option>
+                    <option value="gpu-drop">🎮 Used GPU Drop (24h FurMark · 06M Warranty)</option>
+                    <option value="3d-studio">🧊 3D PC Builder &amp; 4K Spec Poster Challenge</option>
+                    <option value="upgrade-kits">⚡ 1-Click CPU + Board + RAM Upgrade Kits</option>
+                    <option value="brand-new">📦 Brand New Monitors, CPUs &amp; Peripherals</option>
+                    <option value="custom-item">🛒 Promote Specific Catalog Product...</option>
+                  </select>
+                </div>
+
+                <div class="form-field">
+                  <label for="meta-target-platform">Target Channels</label>
+                  <select id="meta-target-platform" class="sort-select">
+                    <option value="both">Facebook Page + Instagram Business</option>
+                    <option value="facebook">Facebook Page Only</option>
+                    <option value="instagram">Instagram Business Only</option>
+                  </select>
+                </div>
+              </div>
+
+              <div class="form-field hidden" id="meta-item-picker-wrap">
+                <label for="meta-item-picker">Select Catalog Product to Promote</label>
+                <select id="meta-item-picker" class="sort-select"></select>
+              </div>
+
+              <div class="form-row-2">
+                <div class="form-field">
+                  <label for="meta-media-type">Creative Format</label>
+                  <select id="meta-media-type" class="sort-select">
+                    <option value="image">🖼️ Image Post (1:1 / 4:5)</option>
+                    <option value="video">🎬 Reel / Video (9:16 or 16:9 MP4)</option>
+                  </select>
+                </div>
+                <div class="form-field">
+                  <label for="meta-link-url">Website Target Link</label>
+                  <input id="meta-link-url" type="url" class="note-input" value="https://aquapcparts.pages.dev" />
+                </div>
+              </div>
+
+              <div class="form-row-2">
+                <div class="form-field">
+                  <label for="meta-image-url">Public Promo Image URL</label>
+                  <input id="meta-image-url" type="url" class="note-input" value="https://aquapcsolutions.yyth.workers.dev/marketing/ecosystem-launch-1x1.jpg" />
+                </div>
+                <div class="form-field">
+                  <label for="meta-video-url">Public Video URL (Reels / FB Video)</label>
+                  <input id="meta-video-url" type="url" class="note-input" value="https://aquapcsolutions.yyth.workers.dev/marketing/ecosystem-reel-9x16.mp4" />
+                </div>
+              </div>
+
+              <div class="admin-hint-pill" id="meta-media-hint">
+                🖼️ Feed: 1080×1080 or 1080×1350 · 🎬 Reels: 9:16 MP4 (720×1280+) · Both URLs must be publicly reachable by Meta (no Cloudflare Access login).
+              </div>
+
+              <div class="form-field">
+                <label for="meta-caption-text">Post Caption (Editable)</label>
+                <textarea id="meta-caption-text" rows="8" class="note-input admin-textarea"></textarea>
+              </div>
+
+              <div class="admin-hint-pill hidden" id="meta-publish-status"></div>
+
+              <button type="button" id="btn-meta-publish-now" class="lp-btn lp-btn-emerald">
+                <span class="material-symbols-outlined">send</span>
+                <span>Publish Live to FB &amp; IG (Graph API)</span>
+              </button>
+
+              <div class="admin-backup-grid" style="margin-top: 6px;">
+                <button type="button" id="btn-meta-open-suite" class="btn-main-site">
+                  <span class="material-symbols-outlined">edit_square</span>
+                  <span>Copy Caption &amp; Open Meta Business Suite Composer ↗</span>
+                </button>
+                <button type="button" id="btn-meta-open-fb" class="btn-main-site">
+                  <span class="material-symbols-outlined">share</span>
+                  <span>Copy Caption &amp; Open Facebook Page ↗</span>
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -587,5 +712,5 @@
   <script src="admin.js"></script>
   <script defer src="aqua-auth.bundle.js"></script>
 </body>
-</html>
 
+</html>

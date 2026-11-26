@@ -335,6 +335,8 @@
       { label: "Parts Store Contact & Showroom", externalUrl: "./contact.html" },
       { label: "Facebook (@aquapcsolutions)", externalUrl: "https://www.facebook.com/aquapcsolutions" },
       { label: "Instagram (@aquapcsolutions)", externalUrl: "https://www.instagram.com/aquapcsolutions/" },
+      { label: "Telegram Drops (@aquapcdeals)", externalUrl: "https://t.me/aquapcdeals" },
+      { label: "TikTok (@thinulhansana669)", externalUrl: "https://www.tiktok.com/@thinulhansana669" },
     ].forEach((entry) => {
       const li = document.createElement("li");
       const a = document.createElement("a");

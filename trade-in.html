@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Trade-In &amp; Upgrade Swap (+10% Bonus) | Aqua PC Parts – Sri Lanka</title>
+  <link rel="icon" type="image/jpeg" href="assets/logo.jpg" />
+  <link rel="icon" type="image/png" sizes="192x192" href="/pwa-192x192.png" />
+  <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+  <link rel="manifest" href="/manifest.json" />
+  <meta
+    name="description"
+    content="Trade in or sell your used GPU, CPU, Motherboard, RAM, Monitor, or Laptop at Aqua PC Parts. Get instant cash or +10% Upgrade Swap Credit for your next PC build."
+  />
+  <meta name="referrer" content="no-referrer" />
+  <meta name="theme-color" content="#071138" />
+  <script>
+    (function () {
+      try {
+        var t = localStorage.getItem("aqua-parts-theme");
+        if (t === "light" || t === "dark") {
+          document.documentElement.setAttribute("data-theme", t);
+        }
+      } catch (_) {}
+    })();
+  </script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Syne:wght@700;800&display=swap"
+    rel="stylesheet"
+  />
+  <link
+    rel="stylesheet"
+    href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200"
+  />
+  <link rel="stylesheet" href="shop.css" />
+  <link rel="stylesheet" href="auth-panel.css" />
+</head>
+<body data-page="tradein">
+
+  <div id="aqua-top-shell"></div>
+
+  <main class="ne-main">
+    <section class="ne-page-hero">
+      <div class="ne-container ne-page-hero-inner">
+        <div>
+          <div class="ne-page-crumbs">
+            <a href="./index.html">Home</a>
+            <span>/</span>
+            <span>Trade-In &amp; Upgrade Swap</span>
+          </div>
+          <h1>Instant Hardware Trade-In &amp; +10% Upgrade Swap</h1>
+          <p>Turn your working GPUs, CPUs, Motherboards, Monitors &amp; Laptops into instant bank cash or +10% bonus upgrade credit across any item on Aqua PC Parts.</p>
+        </div>
+        <div class="ne-page-hero-actions">
+          <a href="./pc-builder.html" class="ne-btn ne-btn-orange ne-btn-sm">Upgrade in PC Builder</a>
+          <a href="./deals.html" class="ne-btn ne-btn-outline ne-btn-sm" style="color:#fff;border-color:rgba(255,255,255,.3)">Shop Hot Deals</a>
+        </div>
+      </div>
+    </section>
+
+    <section class="ne-container" aria-label="How Trade-In Works">
+      <div class="ne-steps-row">
+        <div class="ne-step-card">
+          <span class="ne-step-num">STEP 01 · ESTIMATE</span>
+          <h3>Instant LKR Valuation</h3>
+          <p>Choose your hardware category, condition grade, and box status below to see an immediate cash or +10% swap quote.</p>
+        </div>
+        <div class="ne-step-card">
+          <span class="ne-step-num">STEP 02 · BENCH VERIFY</span>
+          <h3>2-Minute Video Appraisal</h3>
+          <p>Share a short FurMark, CPU-Z, or display clip on WhatsApp (+94 78 819 4535) or bring it to our Embilipitiya ESD lab.</p>
+        </div>
+        <div class="ne-step-card">
+          <span class="ne-step-num">STEP 03 · SWAP OR CASH</span>
+          <h3>Instant Credit or Transfer</h3>
+          <p>Apply your trade-in credit directly to reduce your Cart or Smart PC Builder total, or receive same-day bank payout.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="ne-tradein-section" id="trade-in-marketplace" aria-label="Trade-In and Upgrade Swap Calculator">
+      <div class="ne-container">
+        <div class="ne-tradein-card">
+          <div class="ne-tradein-head">
+            <div>
+              <span class="ne-section-kicker">SELL OR SWAP HARDWARE · +10% UPGRADE BONUS</span>
+              <h2>Instant Trade-In Valuation Calculator</h2>
+              <p>Credit applied here saves across your session automatically when you open your Cart or Smart PC Builder.</p>
+            </div>
+            <div class="ne-tradein-badges">
+              <span class="ne-lab-pill">✔ 15-Min WhatsApp Video Appraisal</span>
+              <span class="ne-lab-pill is-gold">⚡ +10% Swap Credit Bonus</span>
+            </div>
+          </div>
+
+          <div class="ne-tradein-grid">
+            <div class="ne-tradein-inputs">
+              <label class="ne-combo-slot">
+                <span class="ne-slot-label"><span class="material-symbols-outlined">category</span> Part Category</span>
+                <select id="ti-category" aria-label="Trade-in part category">
+                  <option value="vga-cards">Graphics Card (GPU)</option>
+                  <option value="processors">Processor (CPU)</option>
+                  <option value="motherboards">Motherboard</option>
+                  <option value="ram">Memory (RAM)</option>
+                  <option value="monitors">Monitor</option>
+                  <option value="laptops">Laptop / MacBook</option>
+                  <option value="storage">SSD / Hard Drive</option>
+                </select>
+              </label>
+
+              <label class="ne-combo-slot">
+                <span class="ne-slot-label"><span class="material-symbols-outlined">inventory_2</span> Existing Model</span>
+                <select id="ti-item-select" aria-label="Select hardware model to trade in"></select>
+              </label>
+
+              <label class="ne-combo-slot">
+                <span class="ne-slot-label"><span class="material-symbols-outlined">edit_note</span> Or Custom Model Name</span>
+                <input id="ti-custom-model" type="text" placeholder="e.g. MSI GTX 1650 Gaming X 4GB" />
+              </label>
+
+              <label class="ne-combo-slot">
+                <span class="ne-slot-label"><span class="material-symbols-outlined">verified</span> Physical &amp; Bench Condition</span>
+                <select id="ti-condition" aria-label="Select item condition grade">
+                  <option value="grade-a">Grade A · Mint, Clean Seals, 100% Working</option>
+                  <option value="grade-b">Grade B · Good Working, Normal Wear</option>
+                  <option value="grade-c">Grade C · Needs Fan / Thermal Service</option>
+                </select>
+              </label>
+
+              <label class="ne-combo-slot">
+                <span class="ne-slot-label"><span class="material-symbols-outlined">package_2</span> Box &amp; Accessories</span>
+                <select id="ti-box" aria-label="Select box status">
+                  <option value="boxed">With Original Box (+6% Value)</option>
+                  <option value="loose">Bare Component Only</option>
+                </select>
+              </label>
+
+              <label class="ne-combo-slot">
+                <span class="ne-slot-label"><span class="material-symbols-outlined">swap_horiz</span> Payout Preference</span>
+                <select id="ti-mode" aria-label="Select payout preference">
+                  <option value="upgrade">Upgrade Swap Credit (+10% Bonus)</option>
+                  <option value="cash">Instant Cash / Bank Transfer</option>
+                </select>
+              </label>
+            </div>
+
+            <aside class="ne-tradein-result">
+              <div class="ne-combo-sum-badge">ESTIMATED TRADE-IN QUOTE</div>
+              <div class="ne-tradein-val-box">
+                <span>Estimated Payout Value</span>
+                <strong id="ti-value-display">0 LKR</strong>
+                <em id="ti-bonus-display">Includes +10% Upgrade Swap Bonus</em>
+              </div>
+              <ul class="ne-tradein-steps">
+                <li>1. Final offer confirmed after 2-min FurMark / CPU-Z video check.</li>
+                <li>2. Island-wide pickup or drop off at Embilipitiya Lab.</li>
+                <li>3. Apply instantly to reduce your Cart &amp; PC Builder total.</li>
+              </ul>
+              <div class="ne-combo-actions">
+                <button type="button" class="ne-btn ne-btn-orange ne-btn-block" id="ti-apply-btn">
+                  <span class="material-symbols-outlined">loyalty</span>
+                  <span>Apply Credit to My Cart &amp; Builder</span>
+                </button>
+                <a href="https://wa.me/94788194535" target="_blank" rel="noopener" class="ne-btn ne-btn-wa ne-btn-block" id="ti-wa-btn">
+                  <span class="material-symbols-outlined">video_call</span>
+                  <span>Book 15-Min WhatsApp Video Appraisal</span>
+                </a>
+              </div>
+            </aside>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <div id="aqua-bottom-shell"></div>
+
+  <script src="catalog.js"></script>
+  <script src="part-images.js"></script>
+  <script src="shell.js"></script>
+  <script src="shop.js"></script>
+  <script defer src="aqua-auth.bundle.js"></script>
+  <script defer src="pwa.js"></script>
+</body>
+</html>
+

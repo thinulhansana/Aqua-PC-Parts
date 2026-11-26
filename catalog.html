@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Full Hardware Catalog (1,731+ Parts) | Aqua PC Parts – Sri Lanka</title>
+  <link rel="icon" type="image/jpeg" href="assets/logo.jpg" />
+  <link rel="icon" type="image/png" sizes="192x192" href="/pwa-192x192.png" />
+  <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+  <link rel="manifest" href="/manifest.json" />
+  <link rel="canonical" href="https://aquapcparts.pages.dev/catalog.html" />
+  <meta
+    name="description"
+    content="Search and filter all 1,731+ Used and Brand New PC hardware items across 30 departments by price, brand, socket, DDR generation, VRAM capacity, and stock status."
+  />
+  <meta name="referrer" content="no-referrer" />
+  <meta name="theme-color" content="#071138" />
+
+  <!-- OpenGraph / Facebook / Discord / Telegram -->
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="Aqua PC Parts" />
+  <meta property="og:url" content="https://aquapcparts.pages.dev/catalog.html" />
+  <meta property="og:title" content="Full Hardware Catalog (1,731+ Parts) | Aqua PC Parts – Sri Lanka" />
+  <meta property="og:description"
+    content="Search and filter all 1,731+ Used and Brand New PC hardware items across 30 departments by price, brand, socket, DDR, VRAM, and stock status." />
+  <meta property="og:image" content="https://aquapcparts.pages.dev/assets/parts/hero-studio-flagship.jpg" />
+  <meta property="og:image:secure_url" content="https://aquapcparts.pages.dev/assets/parts/hero-studio-flagship.jpg" />
+  <meta property="og:image:type" content="image/jpeg" />
+  <meta property="og:image:width" content="1920" />
+  <meta property="og:image:height" content="1080" />
+  <meta property="og:image:alt" content="Aqua PC Parts Complete Hardware Catalog" />
+  <meta property="og:locale" content="en_US" />
+
+  <!-- Twitter / X Cards -->
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:site" content="@aquapcsolutions" />
+  <meta name="twitter:creator" content="@aquapcsolutions" />
+  <meta name="twitter:url" content="https://aquapcparts.pages.dev/catalog.html" />
+  <meta name="twitter:title" content="Full Hardware Catalog (1,731+ Parts) | Aqua PC Parts" />
+  <meta name="twitter:description"
+    content="Search and filter all 1,731+ Used and Brand New PC hardware items across 30 departments at Aqua PC Parts." />
+  <meta name="twitter:image" content="https://aquapcparts.pages.dev/assets/parts/hero-studio-flagship.jpg" />
+  <meta name="twitter:image:alt" content="Aqua PC Parts Complete Hardware Catalog" />
+  <script>
+    (function () {
+      try {
+        var t = localStorage.getItem("aqua-parts-theme");
+        if (t === "light" || t === "dark") {
+          document.documentElement.setAttribute("data-theme", t);
+        }
+      } catch (_) {}
+    })();
+  </script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Syne:wght@700;800&display=swap"
+    rel="stylesheet"
+  />
+  <link
+    rel="stylesheet"
+    href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200"
+  />
+  <link rel="stylesheet" href="shop.css" />
+  <link rel="stylesheet" href="auth-panel.css" />
+</head>
+<body data-page="catalog">
+
+  <div id="aqua-top-shell"></div>
+
+  <main class="ne-main">
+    <section class="ne-page-hero">
+      <div class="ne-container ne-page-hero-inner">
+        <div>
+          <div class="ne-page-crumbs">
+            <a href="./index.html">Home</a>
+            <span>/</span>
+            <span>Full Hardware Catalog</span>
+          </div>
+          <h1>Complete PC Parts &amp; Electronics Superstore</h1>
+          <p>Filter across all bench-tested Used Hardware and Sealed Brand New SKUs by department, brand, socket, memory spec, or LKR budget.</p>
+        </div>
+        <div class="ne-page-hero-actions">
+          <a href="./used-parts.html" class="ne-btn ne-btn-outline ne-btn-sm" style="color:#fff;border-color:rgba(255,255,255,.3)">Used Parts Division</a>
+          <a href="./brand-new-parts.html" class="ne-btn ne-btn-outline ne-btn-sm" style="color:#fff;border-color:rgba(255,255,255,.3)">Brand New Store</a>
+          <a href="./pc-builder.html" class="ne-btn ne-btn-orange ne-btn-sm">Open PC Builder</a>
+        </div>
+      </div>
+    </section>
+
+    <!-- Left-Faceted Full Product Catalog -->
+    <section class="ne-catalog-section" id="shop" aria-label="Hardware Catalog">
+      <div class="ne-container ne-catalog-layout">
+
+        <!-- Left Faceted Filter Sidebar -->
+        <aside class="ne-filter-sidebar" id="filter-sidebar" aria-label="Catalog Filters">
+          <div class="ne-filter-mobile-head">
+            <span>Filter Hardware Catalog</span>
+            <button type="button" class="ne-icon-btn" id="mobile-filter-close" aria-label="Close filters">
+              <span class="material-symbols-outlined">close</span>
+            </button>
+          </div>
+          <div class="ne-filter-header">
+            <h3>
+              <span class="material-symbols-outlined">tune</span>
+              <span>Filter Results</span>
+            </h3>
+            <button type="button" class="ne-reset-link" id="f-reset">Reset All</button>
+          </div>
+
+          <div class="ne-facet-group">
+            <h4>Availability &amp; Pricing</h4>
+            <label class="ne-check-row">
+              <input type="checkbox" id="f-stock-toggle" />
+              <span>In Stock Only</span>
+            </label>
+            <label class="ne-check-row">
+              <input type="checkbox" id="f-priced-toggle" />
+              <span>Priced Items Only</span>
+            </label>
+          </div>
+
+          <div class="ne-facet-group">
+            <h4>Condition</h4>
+            <div class="ne-facet-pills">
+              <button type="button" class="ne-facet-pill active" data-quick="all">All Hardware</button>
+              <button type="button" class="ne-facet-pill" data-quick="used">Certified Used · 06M</button>
+              <button type="button" class="ne-facet-pill" data-quick="new">Brand New Sealed</button>
+            </div>
+          </div>
+
+          <div class="ne-facet-group">
+            <h4>CPU / Motherboard Socket</h4>
+            <div class="ne-facet-chip-grid" id="facet-sockets">
+              <button type="button" class="ne-spec-chip active" data-socket="">All Sockets</button>
+              <button type="button" class="ne-spec-chip" data-socket="AM5">AM5 (Ryzen 7000/9000)</button>
+              <button type="button" class="ne-spec-chip" data-socket="AM4">AM4 (Ryzen 1k–5k)</button>
+              <button type="button" class="ne-spec-chip" data-socket="LGA1851">LGA1851 (Core Ultra)</button>
+              <button type="button" class="ne-spec-chip" data-socket="LGA1700">LGA1700 (12th–14th)</button>
+              <button type="button" class="ne-spec-chip" data-socket="LGA1200">LGA1200 (10th–11th)</button>
+              <button type="button" class="ne-spec-chip" data-socket="LGA1151">LGA1151 (6th–9th)</button>
+              <button type="button" class="ne-spec-chip" data-socket="LGA1150">LGA1150 (4th Gen)</button>
+            </div>
+          </div>
+
+          <div class="ne-facet-group">
+            <h4>Price Range (LKR)</h4>
+            <div class="ne-price-inputs">
+              <input id="pmin" type="number" min="0" placeholder="Min LKR" aria-label="Minimum price LKR" />
+              <span>–</span>
+              <input id="pmax" type="number" min="0" placeholder="Max LKR" aria-label="Maximum price LKR" />
+            </div>
+            <div class="ne-bracket-list">
+              <button type="button" class="ne-bracket-btn" data-price-bracket="0-10000">Under 10,000 LKR</button>
+              <button type="button" class="ne-bracket-btn" data-price-bracket="10000-25000">10,000 – 25,000 LKR</button>
+              <button type="button" class="ne-bracket-btn" data-price-bracket="25000-60000">25,000 – 60,000 LKR</button>
+              <button type="button" class="ne-bracket-btn" data-price-bracket="60000-9999999">60,000+ LKR</button>
+            </div>
+          </div>
+
+          <div class="ne-facet-group">
+            <h4>Department</h4>
+            <ul class="ne-facet-depts" id="facet-depts"></ul>
+          </div>
+
+          <div class="ne-facet-group">
+            <h4>Brand / OEM Manufacturer</h4>
+            <div class="ne-facet-chip-grid" id="facet-brands">
+              <button type="button" class="ne-spec-chip active" data-brand="">All</button>
+              <button type="button" class="ne-spec-chip" data-brand="nvidia">NVIDIA GeForce</button>
+              <button type="button" class="ne-spec-chip" data-brand="amd">AMD Radeon / Ryzen</button>
+              <button type="button" class="ne-spec-chip" data-brand="intel">Intel Core</button>
+              <button type="button" class="ne-spec-chip" data-brand="asus">ASUS / ROG / TUF</button>
+              <button type="button" class="ne-spec-chip" data-brand="msi">MSI</button>
+              <button type="button" class="ne-spec-chip" data-brand="gigabyte">Gigabyte / AORUS</button>
+              <button type="button" class="ne-spec-chip" data-brand="lenovo">Lenovo</button>
+              <button type="button" class="ne-spec-chip" data-brand="hp">HP</button>
+              <button type="button" class="ne-spec-chip" data-brand="dell">Dell</button>
+              <button type="button" class="ne-spec-chip" data-brand="apple">Apple</button>
+              <button type="button" class="ne-spec-chip" data-brand="corsair">Corsair</button>
+              <button type="button" class="ne-spec-chip" data-brand="kingston">Kingston</button>
+              <button type="button" class="ne-spec-chip" data-brand="lexar">Lexar</button>
+              <button type="button" class="ne-spec-chip" data-brand="samsung">Samsung</button>
+              <button type="button" class="ne-spec-chip" data-brand="thermaltake">Thermaltake</button>
+              <button type="button" class="ne-spec-chip" data-brand="gamdias">Gamdias</button>
+            </div>
+          </div>
+
+          <div class="ne-facet-group">
+            <h4>Memory / Key Spec</h4>
+            <div class="ne-facet-chip-grid" id="facet-specs">
+              <button type="button" class="ne-spec-chip active" data-spec="">All</button>
+              <button type="button" class="ne-spec-chip" data-spec="ddr5">DDR5</button>
+              <button type="button" class="ne-spec-chip" data-spec="ddr4">DDR4</button>
+              <button type="button" class="ne-spec-chip" data-spec="ddr3">DDR3</button>
+              <button type="button" class="ne-spec-chip" data-spec="nvme">NVMe / M.2</button>
+              <button type="button" class="ne-spec-chip" data-spec="vram4">4GB VRAM</button>
+              <button type="button" class="ne-spec-chip" data-spec="vram6-8">6GB–8GB VRAM</button>
+              <button type="button" class="ne-spec-chip" data-spec="vram11-12">11GB–12GB+ VRAM</button>
+              <button type="button" class="ne-spec-chip" data-spec="ips-hdmi">IPS / HDMI</button>
+            </div>
+          </div>
+
+          <div class="ne-facet-group">
+            <h4>Performance Tier</h4>
+            <div class="ne-facet-chip-grid" id="facet-tiers">
+              <button type="button" class="ne-spec-chip active" data-tier="">All</button>
+              <button type="button" class="ne-spec-chip" data-tier="budget">Budget (&lt; 15k)</button>
+              <button type="button" class="ne-spec-chip" data-tier="esports">Esports 1080p</button>
+              <button type="button" class="ne-spec-chip" data-tier="aaa">High-End AAA</button>
+              <button type="button" class="ne-spec-chip" data-tier="workstation">Workstation / Pro</button>
+            </div>
+          </div>
+        </aside>
+        <div class="ne-filter-backdrop" id="filter-backdrop"></div>
+
+        <!-- Right Catalog Results Area -->
+        <div class="ne-catalog-main">
+          <div class="ne-mobile-filter-bar">
+            <button type="button" class="ne-mobile-filter-btn" id="mobile-filter-open">
+              <span class="material-symbols-outlined">tune</span>
+              <span>Filters &amp; Sockets</span>
+              <b class="ne-mobile-filter-badge" id="mobile-filter-count" hidden>0</b>
+            </button>
+            <a href="./pc-builder.html" class="ne-btn ne-btn-outline ne-btn-sm">PC Builder</a>
+          </div>
+          <div class="ne-catalog-head">
+            <div class="ne-catalog-crumbs">
+              <a href="./index.html">Home</a>
+              <span>/</span>
+              <span id="catalog-crumb">All PC Parts</span>
+            </div>
+            <div class="ne-catalog-title-row">
+              <h2 id="active-cat-title" style="font-family:'Syne',sans-serif;font-size:1.5rem;">All PC Parts</h2>
+              <span class="ne-result-count" id="result-count">Loading…</span>
+            </div>
+          </div>
+
+          <div class="ne-game-filter-bar" id="game-filter-bar" role="group" aria-label="Shop by Game and Workload">
+            <span class="ne-game-filter-label">Can It Run?</span>
+            <button type="button" class="ne-game-pill active" data-game-preset="">🎮 All Hardware</button>
+            <button type="button" class="ne-game-pill" data-game-preset="valorant">⚡ Valorant / CS2 144Hz+</button>
+            <button type="button" class="ne-game-pill" data-game-preset="gtav">🏎️ GTA V / Forza 1080p (&lt; 45k)</button>
+            <button type="button" class="ne-game-pill" data-game-preset="cyberpunk">🔥 Cyberpunk / AAA 1080p–1440p</button>
+            <button type="button" class="ne-game-pill" data-game-preset="creator">🎬 Premiere Pro / DaVinci Creator</button>
+            <button type="button" class="ne-game-pill" data-game-preset="gpu35k">💎 Best Value GPUs Under 35,000 LKR</button>
+          </div>
+
+          <div class="ne-toolbar">
+            <ul class="ne-quick-tabs ty-catPage-baseFilters">
+              <li class="active"><button type="button" data-quick="all">All Items</button></li>
+              <li><button type="button" data-quick="used">Used · 06M Warranty</button></li>
+              <li><button type="button" data-quick="new">Brand New</button></li>
+              <li><button type="button" data-quick="instock">In Stock</button></li>
+              <li><button type="button" data-quick="priced">Priced Only</button></li>
+            </ul>
+
+            <div class="ne-toolbar-right">
+              <div class="ne-inline-search-wrap">
+                <span class="material-symbols-outlined">search</span>
+                <input id="catalog-inline-search" type="search" placeholder="Filter by model, socket, chip…" aria-label="Filter visible results" />
+                <button type="button" class="ne-inline-clear" id="catalog-inline-clear" aria-label="Clear filter search" hidden>
+                  <span class="material-symbols-outlined" style="font-size:15px">close</span>
+                </button>
+              </div>
+              <label class="ne-sort-wrap">
+                <span>Sort By:</span>
+                <select id="sort" aria-label="Sort products">
+                  <option value="default">Featured</option>
+                  <option value="slbest">SL Market Best First</option>
+                  <option value="low">Price: Lowest First</option>
+                  <option value="high">Price: Highest First</option>
+                  <option value="rating">Best Rating</option>
+                  <option value="az">Name: A – Z</option>
+                </select>
+              </label>
+
+              <div class="ne-view-switch" role="group" aria-label="Product layout mode">
+                <button type="button" class="ne-view-btn active" id="view-grid" title="Grid View" aria-label="Grid View">
+                  <span class="material-symbols-outlined">grid_view</span>
+                </button>
+                <button type="button" class="ne-view-btn" id="view-list" title="List View" aria-label="List View">
+                  <span class="material-symbols-outlined">view_list</span>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div class="ne-chips" id="chips"></div>
+          <div class="ne-subcats" id="f-subcats" hidden></div>
+
+          <ul class="ne-product-grid ty-catPage-productList" id="grid"></ul>
+
+          <div class="ne-empty" id="empty" hidden>
+            <span class="material-symbols-outlined">search_off</span>
+            <h3>No matching hardware found</h3>
+            <p>Try clearing filters or ask Rose AI / WhatsApp (+94 78 819 4535) for instant stock confirmation.</p>
+            <button type="button" class="ne-btn ne-btn-orange" id="empty-reset-btn">Reset All Filters</button>
+          </div>
+
+          <div class="ne-result-progress">
+            <span class="ne-result-progress-text" id="result-progress-text">Loading…</span>
+            <div class="ne-result-progress-track">
+              <div class="ne-result-progress-fill" id="result-progress-fill"></div>
+            </div>
+          </div>
+
+          <div class="ne-more-wrap" id="load-more-wrap">
+            <button type="button" class="ne-btn ne-btn-navy" id="load-more">View More Hardware Results</button>
+          </div>
+        </div>
+
+      </div>
+    </section>
+  </main>
+
+  <div id="aqua-bottom-shell"></div>
+
+  <script src="catalog.js"></script>
+  <script src="part-images.js"></script>
+  <script src="shell.js"></script>
+  <script src="shop.js"></script>
+  <script defer src="aqua-auth.bundle.js"></script>
+  <script defer src="pwa.js"></script>
+</body>
+</html>
+

@@ -36,6 +36,7 @@
     catFilter: "all",
     statusFilter: "all",
     searchQuery: "",
+    rowLimit: 150,
     cloudAvailable: false,
     lastSavedAt: null,
   };
@@ -82,10 +83,19 @@
 
   function getLocalExpectedPass() {
     try {
-      return localStorage.getItem(LOCAL_CUSTOM_PASS_KEY) || "aqua2026";
+      return localStorage.getItem(LOCAL_CUSTOM_PASS_KEY) || "";
     } catch (_) {
-      return "aqua2026";
+      return "";
     }
+  }
+
+  const CLOUD_CATALOG_FALLBACK = "https://aquapcsolutions.yyth.workers.dev/api/catalog";
+  async function fetchCatalogApi(options) {
+    try {
+      const r = await fetch("/api/catalog", options);
+      if (r.status !== 404) return r;
+    } catch (_) {}
+    return fetch(CLOUD_CATALOG_FALLBACK, options);
   }
 
   async function verifyPasscode(candidate) {
@@ -94,7 +104,7 @@
 
     if (typeof fetch === "function" && /^https?:/i.test(window.location.protocol)) {
       try {
-        const res = await fetch("/api/catalog", {
+        const res = await fetchCatalogApi({
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -117,7 +127,7 @@
     if (clean === getLocalExpectedPass()) {
       return { ok: true };
     }
-    return { ok: false, error: "Incorrect admin passcode (default is aqua2026)." };
+    return { ok: false, error: "Incorrect admin passcode." };
   }
 
   function unlockAdmin(pass) {
@@ -288,7 +298,7 @@
     let publishedCloud = false;
     if (typeof fetch === "function" && /^https?:/i.test(window.location.protocol)) {
       try {
-        const res = await fetch("/api/catalog", {
+        const res = await fetchCatalogApi({
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -344,7 +354,7 @@
     if (firestoreSyncedCount > 0) {
       showToast("Saved & Synced " + firestoreSyncedCount + " SKU(s) live to Firestore!", "success");
     } else if (publishedCloud) {
-      showToast("Saved & Published Live! (Sign in with Admin Google in header to persist stock in Firestore)", "success");
+      showToast("Saved & Published Live! (Sign in with Admin Google to persist stock in Firestore)", "success");
     } else {
       showToast("Saved to browser catalog! Download catalog.js for permanent file backup.", "success");
     }
@@ -389,6 +399,10 @@
       (sec.categories || []).forEach((cat) => {
         (cat.items || []).forEach((it) => {
           newTotal++;
+          if (typeof it.price === "number" && Number.isFinite(it.price)) pricedCount++;
+          else inquiryCount++;
+          if (it.inStock === false) outStockCount++;
+          else inStockCount++;
         });
       });
     });
@@ -418,6 +432,7 @@
     items: $("#admin-panel-items"),
     add: $("#admin-panel-add"),
     bulk: $("#admin-panel-bulk"),
+    meta: $("#admin-panel-meta"),
   };
 
   tabBtns.forEach((btn) => {
@@ -599,8 +614,9 @@
     }
 
     const frag = document.createDocumentFragment();
+    const visibleRows = rows.slice(0, state.rowLimit || 150);
 
-    rows.forEach(({ sec, cat, item }) => {
+    visibleRows.forEach(({ sec, cat, item }) => {
       const tr = document.createElement("tr");
       tr.className = "admin-row" + (item.inStock === false ? " is-out" : "");
 
@@ -653,13 +669,13 @@
       btn750.type = "button";
       btn750.className = "markup-chip emerald";
       btn750.textContent = "+750";
-      btn750.title = "Set Selling Price = Base Price + Rs. 750";
+      btn750.title = "Set Selling Price = Base Price + LKR 750";
 
       const btn2000 = document.createElement("button");
       btn2000.type = "button";
       btn2000.className = "markup-chip cyan";
       btn2000.textContent = "+2000";
-      btn2000.title = "Set Selling Price = Base Price + Rs. 2,000";
+      btn2000.title = "Set Selling Price = Base Price + LKR 2,000";
 
       const btnInq = document.createElement("button");
       btnInq.type = "button";
@@ -720,7 +736,7 @@
           it.price = nextSell;
         });
         markChanged(1);
-        showToast(item.name + " → Rs. " + nextSell.toLocaleString("en-US"), "success");
+        showToast(item.name + " → LKR " + nextSell.toLocaleString("en-LK"), "success");
       }
 
       btn750.addEventListener("click", () => applyRowMarkup(750));
@@ -797,6 +813,24 @@
     });
 
     tbodyEl.appendChild(frag);
+    if (rows.length > visibleRows.length) {
+      const moreTr = document.createElement("tr");
+      const td = document.createElement("td");
+      td.colSpan = 7;
+      td.style.textAlign = "center";
+      td.style.padding = "14px";
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "lp-btn lp-btn-primary";
+      btn.textContent = "Load Next 150 Items (" + visibleRows.length + " of " + rows.length + " shown)";
+      btn.addEventListener("click", () => {
+        state.rowLimit = (state.rowLimit || 150) + 150;
+        renderItemsTable();
+      });
+      td.appendChild(btn);
+      moreTr.appendChild(td);
+      tbodyEl.appendChild(moreTr);
+    }
   }
 
   // ── Tab 2: Add Single Item & Batch Paste Importer ───────────────────────────
@@ -1254,7 +1288,7 @@
 
       if (typeof fetch === "function" && /^https?:/i.test(window.location.protocol)) {
         try {
-          const res = await fetch("/api/catalog", {
+          const res = await fetchCatalogApi({
             method: "POST",
             headers: {
               "Content-Type": "application/json",
@@ -1300,7 +1334,7 @@
 
       if (typeof fetch === "function" && /^https?:/i.test(window.location.protocol)) {
         try {
-          await fetch("/api/catalog", {
+          await fetchCatalogApi({
             method: "POST",
             headers: {
               "Content-Type": "application/json",
@@ -1326,12 +1360,563 @@
       .replace(/"/g, "&quot;");
   }
 
+  // ── Tab 4: Meta Facebook Page & Instagram Promoter ──────────────────────────
+  const META_MAIN_SITE = "https://aquapcsolutions.yyth.workers.dev";
+  const META_ASSET_BASE = META_MAIN_SITE + "/marketing";
+  const CLOUD_META_PUBLISH_FALLBACK = META_MAIN_SITE + "/api/meta/publish";
+  const META_FEED_URL = META_MAIN_SITE + "/api/meta/catalog";
+  const metaConnBadge = $("#meta-conn-badge");
+  const metaConnectForm = $("#meta-connect-form");
+  const metaTokenInput = $("#meta-access-token");
+  const metaPageIdInput = $("#meta-page-id");
+  const metaIgIdInput = $("#meta-ig-id");
+  const metaTemplateSelect = $("#meta-campaign-template");
+  const metaPlatformSelect = $("#meta-target-platform");
+  const metaMediaTypeSelect = $("#meta-media-type");
+  const metaItemPickerWrap = $("#meta-item-picker-wrap");
+  const metaItemPicker = $("#meta-item-picker");
+  const metaLinkInput = $("#meta-link-url");
+  const metaImageInput = $("#meta-image-url");
+  const metaVideoInput = $("#meta-video-url");
+  const metaMediaHint = $("#meta-media-hint");
+  const metaCaptionInput = $("#meta-caption-text");
+  const metaPublishStatus = $("#meta-publish-status");
+
+  let metaCatalogIndex = [];
+
+  async function fetchMetaApi(options) {
+    try {
+      const r = await fetch("/api/meta/publish", options);
+      if (r.status !== 404) return r;
+    } catch (_) {}
+    return fetch(CLOUD_META_PUBLISH_FALLBACK, options);
+  }
+
+  const META_TEMPLATES = {
+    ecosystem: {
+      format: "image",
+      link: "https://aquapcsolutions.yyth.workers.dev",
+      image: META_ASSET_BASE + "/ecosystem-launch-1x1.jpg",
+      video: META_ASSET_BASE + "/ecosystem-reel-9x16.mp4",
+      caption: [
+        "🚀 SRI LANKA'S COMPLETE PC HARDWARE, 3D BUILD & LAB ECOSYSTEM IS LIVE!",
+        "",
+        "1️⃣ Hardware Superstore (1,731+ Parts — 310+ Used & 1,421+ Brand New):",
+        "👉 https://aquapcparts.pages.dev",
+        "• Filter GPUs by game (Valorant / GTA V / Cyberpunk)",
+        "• Instant Trade-In Swap Estimator (+10% Bonus)",
+        "",
+        "2️⃣ Interactive 3D PC Builder Studio:",
+        "👉 https://aquapc3dportal.pages.dev",
+        "• Real-time 3D WebGL PC builder + 4K Spec Poster export + Direct Buy link",
+        "",
+        "3️⃣ Precision ESD Lab, Repairs & QR Bench Tracker:",
+        "👉 https://aquapcsolutions.yyth.workers.dev",
+        "• Thermal Overhaul (LKR 2,500) | Board Diagnostics (From LKR 4,500)",
+        "",
+        "🇱🇰 Embilipitiya Workshop Pickup OR Island-Wide ESD-Safe Courier!",
+        "💬 WhatsApp: +94 78 819 4535 · https://wa.me/94788194535",
+        "",
+        "#AquaPCSolutions #AquaPCParts #SriLankaGaming #PCBuildSL #UsedGPUSriLanka #Embilipitiya",
+      ].join("\n"),
+    },
+    "product-promo": {
+      format: "video",
+      link: "https://aquapcparts.pages.dev",
+      image: META_ASSET_BASE + "/ecosystem-launch-1x1.jpg",
+      video: META_ASSET_BASE + "/ecosystem-reel-9x16.mp4",
+      caption: [
+        "🎬 24-SECOND TOUR: FLAGSHIP GPUs, BRAND-NEW GEAR & THE EMBILIPITIYA ESD LAB!",
+        "",
+        "From 1,731+ in-stock parts to 24-hour FurMark/OCCT bench verification — see how every Aqua PC order is built, tested and packed before it reaches you.",
+        "",
+        "✅ 310+ Grade-A Used Parts · 06-Month Written Testing Warranty",
+        "✅ 1,421+ Factory-Sealed Brand New SKUs",
+        "✅ Real-time 3D PC Builder with LKR pricing & 4K spec poster",
+        "✅ Same-day thermal overhauls, board-level diagnostics & QR bench tracking",
+        "",
+        "🇱🇰 Island-wide ESD-safe courier or Embilipitiya workshop pickup.",
+        "🛒 Shop: https://aquapcparts.pages.dev",
+        "🧊 Build in 3D: https://aquapc3dportal.pages.dev",
+        "🛠️ Book lab service: https://aquapcsolutions.yyth.workers.dev/services",
+        "💬 WhatsApp: +94 78 819 4535 · https://wa.me/94788194535",
+        "",
+        "#AquaPCSolutions #AquaPCParts #SriLankaGaming #PCBuildSL #CustomPCSriLanka #Embilipitiya",
+      ].join("\n"),
+    },
+    "gpu-drop": {
+      format: "image",
+      link: "https://aquapcparts.pages.dev/used-parts.html?category=vga-cards",
+      image: META_ASSET_BASE + "/drops/drop-01-used-gpu-1x1.png",
+      video: "",
+      caption: [
+        "🎮 GRADE-A 24H BENCH-TESTED GPUs — WITH 06-MONTH WRITTEN TESTING WARRANTY!",
+        "",
+        "✅ 24-Hour FurMark & OCCT Stress Verification (Zero Artifacts)",
+        "✅ Thermal & Hotspot Checked inside our Embilipitiya ESD Lab",
+        "✅ Instant Trade-In Swap Estimator (+10% Bonus on your old GPU!)",
+        "",
+        "💎 Filter GPUs under LKR 35,000 or by game (Valorant, GTA V, Cyberpunk):",
+        "👉 https://aquapcparts.pages.dev/used-parts.html?category=vga-cards",
+        "",
+        "📦 Island-Wide Shockproof Anti-Static Delivery or Embilipitiya Pickup.",
+        "💬 WhatsApp for live test video & stock: +94 78 819 4535",
+        "",
+        "#UsedVGASriLanka #RTX4060 #GTX1660Super #PCGamingSL #AquaPCParts #GPUUpgradeSL",
+      ].join("\n"),
+    },
+    "3d-studio": {
+      format: "image",
+      link: "https://aquapc3dportal.pages.dev",
+      image: META_ASSET_BASE + "/ecosystem-launch-4x5.jpg",
+      video: META_ASSET_BASE + "/ecosystem-reel-9x16.mp4",
+      caption: [
+        "🧊 DESIGN YOUR DREAM PC IN REAL-TIME 3D & DOWNLOAD YOUR 4K SPEC POSTER!",
+        "",
+        "⚡ Swap Ryzen & Intel CPUs, RTX 50/40 GPUs, Liquid AIO Loops & RGB in WebGL 3D",
+        "⚡ Automatic Socket & PSU Wattage Compatibility + Live FPS Estimator",
+        "⚡ Export your 4K Build Spec Poster (PNG) & click 'Buy on Aqua PC Parts' for live LKR pricing!",
+        "",
+        "🔥 Try it free & tag @aquapcsolutions with your custom build screenshot:",
+        "👉 https://aquapc3dportal.pages.dev",
+        "💬 WhatsApp Custom Build Team: +94 78 819 4535",
+        "",
+        "#3DPCBuilder #AquaPCSolutions #GamingSetupSL #CustomPCSriLanka #TechSriLanka",
+      ].join("\n"),
+    },
+    "upgrade-kits": {
+      format: "image",
+      link: "https://aquapcparts.pages.dev/pc-builder.html#upgrade-combo-kits",
+      image: META_ASSET_BASE + "/drops/drop-04-custom-bundle-1x1.png",
+      video: "",
+      caption: [
+        "⚡ ZERO SOCKET GUESSWORK: 1-CLICK CPU + BOARD + RAM UPGRADE KITS (SAVE UP TO LKR 2,500)",
+        "",
+        "• Ryzen 5 5600 + B550M WiFi + DDR4 Kit",
+        "• Intel Core i5-14400 + B760M WiFi + 16GB DDR5 Kit",
+        "• Ryzen 5 7600X + B650M WiFi + 16GB DDR5 Kit",
+        "• Budget Student Core i5 4th Gen + H81 + 8GB DDR3 Kit",
+        "",
+        "🛠️ Configure yours + apply +10% Trade-In Swap Credit:",
+        "👉 https://aquapcparts.pages.dev/pc-builder.html#upgrade-combo-kits",
+        "💬 WhatsApp Workshop Fitting (+LKR 1,500): +94 78 819 4535",
+        "",
+        "#PCUpgradeSriLanka #RyzenSriLanka #Intel14thGen #AquaPCParts #PCBuilderLK",
+      ].join("\n"),
+    },
+    "brand-new": {
+      format: "image",
+      link: "https://aquapcparts.pages.dev/brand-new-parts.html",
+      image: META_ASSET_BASE + "/drops/drop-02-monitor-1x1.png",
+      video: "",
+      caption: [
+        "📦 BRAND NEW FACTORY-SEALED MONITORS, CPUs & HARDWARE — VERIFIED AGAINST TOP COLOMBO RETAIL PRICING",
+        "",
+        "Looking for 120Hz/144Hz IPS gaming monitors, Ryzen 7000/9000 processors, NVMe Gen4 SSDs, or 80+ Gold PSUs with full official warranty?",
+        "Browse 1,421+ Brand New SKUs matched against top Colombo retail prices — delivered fast from Embilipitiya anywhere in Sri Lanka!",
+        "",
+        "🖥️ Brand New Store 👉 https://aquapcparts.pages.dev/brand-new-parts.html",
+        "📍 Lab & Repairs 👉 https://aquapcsolutions.yyth.workers.dev/services",
+        "💬 WhatsApp / Call: +94 78 819 4535",
+        "",
+        "#BrandNewPCSL #GamingMonitorSriLanka #AquaPCParts #ColomboTech #KandyTech #Embilipitiya",
+      ].join("\n"),
+    },
+  };
+
+  function populateMetaItemPicker() {
+    if (!metaItemPicker) return;
+    const rows = [];
+    const pushList = (secs, isNew) => {
+      (secs || []).forEach((sec) => {
+        (sec.categories || []).forEach((cat) => {
+          (cat.items || []).forEach((it) => {
+            if (typeof it.price === "number" && it.inStock !== false) {
+              rows.push({
+                id: it.id,
+                name: it.name,
+                price: it.price,
+                warranty: it.warranty || (isNew ? "Official Warranty" : "06 Months Testing Warranty"),
+                image: it.image || "https://aquapcsolutions.yyth.workers.dev/logo.jpg",
+                secId: sec.id,
+                isNew,
+              });
+            }
+          });
+        });
+      });
+    };
+    pushList(getUsedSections(), false);
+    pushList(getNewSections(), true);
+    metaCatalogIndex = rows;
+
+    metaItemPicker.innerHTML = rows
+      .slice(0, 400)
+      .map(
+        (r) =>
+          '<option value="' +
+          escapeHtml(r.id) +
+          '">[' +
+          (r.isNew ? "NEW" : "USED") +
+          "] " +
+          escapeHtml(r.name) +
+          " — LKR " +
+          Number(r.price).toLocaleString("en-LK") +
+          "</option>"
+      )
+      .join("");
+  }
+
+  function applyMetaTemplate(key) {
+    if (!metaCaptionInput) return;
+    if (metaItemPickerWrap) {
+      metaItemPickerWrap.classList.toggle("hidden", key !== "custom-item");
+    }
+    if (key === "custom-item") {
+      const selId = metaItemPicker ? metaItemPicker.value : "";
+      const item = metaCatalogIndex.find((x) => x.id === selId) || metaCatalogIndex[0];
+      if (!item) return;
+      const basePage = item.isNew
+        ? "https://aquapcparts.pages.dev/brand-new-parts.html"
+        : "https://aquapcparts.pages.dev/used-parts.html";
+      const targetUrl =
+        basePage + "?category=" + encodeURIComponent(item.secId) + "&q=" + encodeURIComponent(item.name.slice(0, 50));
+      if (metaLinkInput) metaLinkInput.value = targetUrl;
+      if (metaImageInput) metaImageInput.value = item.image;
+      if (metaVideoInput) metaVideoInput.value = "";
+      if (metaMediaTypeSelect) metaMediaTypeSelect.value = "image";
+      metaCaptionInput.value = [
+        "🔥 HARDWARE FEATURE: " + item.name,
+        "",
+        "💰 Verified Workshop Price: LKR " + Number(item.price).toLocaleString("en-LK"),
+        (item.isNew ? "📦 Factory-Sealed Brand New · " : "✅ Grade-A 24h Bench Tested · ") + item.warranty,
+        "🔄 Trade-In Swap Available (+10% Swap Credit toward upgrade!)",
+        "🚚 Embilipitiya Pickup or Island-Wide ESD-Safe Courier",
+        "",
+        "👉 Order / Inspect Online: " + targetUrl,
+        "🧊 Build in 3D Studio: https://aquapc3dportal.pages.dev",
+        "💬 WhatsApp Direct: +94 78 819 4535 (https://wa.me/94788194535)",
+        "",
+        "#AquaPCParts #AquaPCSolutions #SriLankaPC #GamingSL",
+      ].join("\n");
+      return;
+    }
+
+    const tpl = META_TEMPLATES[key] || META_TEMPLATES.ecosystem;
+    if (metaLinkInput) metaLinkInput.value = tpl.link;
+    if (metaImageInput) metaImageInput.value = tpl.image;
+    if (metaVideoInput) metaVideoInput.value = tpl.video || "";
+    if (metaMediaTypeSelect) {
+      metaMediaTypeSelect.value =
+        tpl.format === "video" && tpl.video ? "video" : "image";
+    }
+    metaCaptionInput.value = tpl.caption;
+    updateMetaMediaHint();
+  }
+
+  function updateMetaMediaHint() {
+    if (!metaMediaHint) return;
+    const isVideo =
+      metaMediaTypeSelect && metaMediaTypeSelect.value === "video";
+    metaMediaHint.textContent = isVideo
+      ? "🎬 Reel / video selected: 9:16 MP4 (720×1280 or higher) is recommended. Meta downloads the video URL, so it must be public and return video/mp4 — no Cloudflare Access login."
+      : "🖼️ Image selected: 1080×1080 or 1080×1350 JPG/PNG. Meta downloads the image URL, so it must be public and return image/* — no Cloudflare Access login.";
+    if (metaImageInput) metaImageInput.closest(".form-field").style.opacity = isVideo ? "0.55" : "1";
+    if (metaVideoInput) metaVideoInput.closest(".form-field").style.opacity = isVideo ? "1" : "0.55";
+  }
+
+  async function loadMetaConnectionStatus() {
+    if (!metaConnBadge) return;
+    if (!/^https?:/i.test(window.location.protocol)) {
+      metaConnBadge.textContent = "Run via HTTP/HTTPS to verify Meta Graph API token.";
+      return;
+    }
+    try {
+      const res = await fetchMetaApi({ method: "GET", cache: "no-store" });
+      if (!res.ok) {
+        metaConnBadge.textContent = "Not Connected — Paste Meta Page Access Token or use Business Suite Composer.";
+        return;
+      }
+      const data = await res.json();
+      if (data && data.connected) {
+        metaConnBadge.textContent =
+          "✔ Connected: " +
+          (data.pageName || "Aqua PC Solutions") +
+          (data.pageId ? " (Page ID: " + data.pageId + ")" : "") +
+          (data.igUserId ? " · IG Business Linked (" + data.igUserId + ")" : " · IG ID not linked");
+        if (metaPageIdInput && !metaPageIdInput.value && data.pageId) metaPageIdInput.value = data.pageId;
+        if (metaIgIdInput && !metaIgIdInput.value && data.igUserId) metaIgIdInput.value = data.igUserId;
+      } else {
+        metaConnBadge.textContent = "Not Connected — Paste Meta Page Access Token below, or use 1-Click Business Suite Composer.";
+      }
+    } catch (_) {
+      metaConnBadge.textContent = "Ready — Connect Meta Access Token or use Business Suite Composer.";
+    }
+  }
+
+  if (metaTemplateSelect) {
+    metaTemplateSelect.addEventListener("change", () => applyMetaTemplate(metaTemplateSelect.value));
+  }
+  if (metaMediaTypeSelect) {
+    metaMediaTypeSelect.addEventListener("change", updateMetaMediaHint);
+  }
+  updateMetaMediaHint();
+  if (metaItemPicker) {
+    metaItemPicker.addEventListener("change", () => {
+      if (metaTemplateSelect && metaTemplateSelect.value === "custom-item") {
+        applyMetaTemplate("custom-item");
+      }
+    });
+  }
+
+  if (metaConnectForm) {
+    metaConnectForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const accessToken = metaTokenInput ? metaTokenInput.value.trim() : "";
+      const pageId = metaPageIdInput ? metaPageIdInput.value.trim() : "";
+      const igUserId = metaIgIdInput ? metaIgIdInput.value.trim() : "";
+      try {
+        const res = await fetchMetaApi({
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-Admin-Passcode": state.passcode,
+          },
+          body: JSON.stringify({
+            action: "connect",
+            passcode: state.passcode,
+            accessToken,
+            pageId,
+            igUserId,
+          }),
+        });
+        const data = await res.json();
+        if (res.ok && data && data.ok) {
+          if (metaPageIdInput && data.pageId) metaPageIdInput.value = data.pageId;
+          if (metaIgIdInput && data.igUserId) metaIgIdInput.value = data.igUserId;
+          if (metaTokenInput) metaTokenInput.value = "";
+          showToast(
+            data.verifiedWithGraph
+              ? "Connected & verified Meta FB/IG accounts!"
+              : "Saved Meta credentials (verify token permissions if needed).",
+            "success"
+          );
+          await loadMetaConnectionStatus();
+        } else {
+          showToast((data && data.error) || "Failed to connect Meta account.", "warn");
+        }
+      } catch (_) {
+        showToast("Could not reach /api/meta/publish.", "warn");
+      }
+    });
+  }
+
+  const btnCopyMetaFeed = $("#btn-copy-meta-feed");
+  if (btnCopyMetaFeed) {
+    btnCopyMetaFeed.addEventListener("click", async () => {
+      try {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          await navigator.clipboard.writeText(META_FEED_URL);
+        }
+        showToast("Copied Meta Commerce Feed URL: " + META_FEED_URL, "success");
+      } catch (_) {
+        showToast("Feed URL: " + META_FEED_URL, "success");
+      }
+    });
+  }
+
+  async function pollMetaReel(containerId, accessToken, igUserId) {
+    const maxAttempts = 12;
+    for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+      if (attempt > 0) {
+        await new Promise((resolve) => setTimeout(resolve, 5000));
+      }
+      if (metaPublishStatus) {
+        metaPublishStatus.textContent =
+          "Instagram is processing the Reel... checking status (" +
+          (attempt + 1) +
+          "/" +
+          maxAttempts +
+          ")";
+      }
+      const res = await fetchMetaApi({
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Admin-Passcode": state.passcode,
+        },
+        body: JSON.stringify({
+          action: "finalize-video",
+          passcode: state.passcode,
+          containerId,
+          accessToken: accessToken || undefined,
+          igUserId: igUserId || undefined,
+        }),
+      });
+      const data = await res.json();
+      if (data && data.published) return { ok: true, id: data.id, data };
+      if (!res.ok || !data || data.ok === false) {
+        return {
+          ok: false,
+          error:
+            (data && data.error) ||
+            "Instagram could not finish processing the Reel.",
+        };
+      }
+    }
+    return {
+      ok: false,
+      pending: true,
+      error:
+        "Instagram is still processing the Reel. Containers stay valid for 24 hours — press Publish again to continue checking.",
+    };
+  }
+
+  const btnMetaPublishNow = $("#btn-meta-publish-now");
+  if (btnMetaPublishNow) {
+    btnMetaPublishNow.addEventListener("click", async () => {
+      const message = metaCaptionInput ? metaCaptionInput.value.trim() : "";
+      const link = metaLinkInput ? metaLinkInput.value.trim() : "";
+      const imageUrl = metaImageInput ? metaImageInput.value.trim() : "";
+      const videoUrl = metaVideoInput ? metaVideoInput.value.trim() : "";
+      const mediaType =
+        metaMediaTypeSelect && metaMediaTypeSelect.value === "video"
+          ? "video"
+          : "image";
+      const platforms = metaPlatformSelect ? metaPlatformSelect.value : "both";
+      const accessToken = metaTokenInput ? metaTokenInput.value.trim() : "";
+      const pageId = metaPageIdInput ? metaPageIdInput.value.trim() : "";
+      const igUserId = metaIgIdInput ? metaIgIdInput.value.trim() : "";
+
+      if (mediaType === "video" && !videoUrl) {
+        showToast("Add a public video URL before publishing a Reel.", "warn");
+        return;
+      }
+      if (mediaType === "image" && !imageUrl && platforms !== "facebook") {
+        showToast("Add a public image URL for Instagram publishing.", "warn");
+        return;
+      }
+
+      btnMetaPublishNow.disabled = true;
+      if (metaPublishStatus) {
+        metaPublishStatus.classList.remove("hidden");
+        metaPublishStatus.textContent =
+          mediaType === "video"
+            ? "Uploading video / creating Instagram Reel container..."
+            : "Publishing via Meta Graph API...";
+      }
+
+      try {
+        const res = await fetchMetaApi({
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-Admin-Passcode": state.passcode,
+          },
+          body: JSON.stringify({
+            action: "publish",
+            passcode: state.passcode,
+            message,
+            link,
+            imageUrl,
+            videoUrl,
+            mediaType,
+            platforms,
+            accessToken: accessToken || undefined,
+            pageId: pageId || undefined,
+            igUserId: igUserId || undefined,
+          }),
+        });
+        const data = await res.json();
+        const parts = [];
+        if (data.results && data.results.facebook) {
+          parts.push(
+            data.results.facebook.ok
+              ? "FB Published (" + (data.results.facebook.id || "OK") + ")"
+              : "FB: " + data.results.facebook.error
+          );
+        }
+
+        let igResult = data.results && data.results.instagram;
+        if (igResult && igResult.pending && igResult.containerId) {
+          const finalized = await pollMetaReel(
+            igResult.containerId,
+            accessToken,
+            igUserId
+          );
+          igResult = finalized.ok
+            ? { ok: true, id: finalized.id }
+            : { ok: false, error: finalized.error, pending: finalized.pending };
+        }
+        if (igResult) {
+          parts.push(
+            igResult.ok
+              ? "IG Published (" + (igResult.id || "OK") + ")"
+              : "IG: " + igResult.error
+          );
+        }
+
+        const anySuccess = Boolean(
+          (data.results && data.results.facebook && data.results.facebook.ok) ||
+            (igResult && igResult.ok)
+        );
+        const summary = parts.join(" · ") || "No platform returned a result.";
+        if (anySuccess) {
+          if (metaPublishStatus) metaPublishStatus.textContent = "✔ " + summary;
+          showToast(summary, "success");
+        } else {
+          const errMsg =
+            (data && data.error) ||
+            (igResult && igResult.error) ||
+            "Publishing failed — check token or use Meta Business Suite.";
+          if (metaPublishStatus) metaPublishStatus.textContent = "⚠ " + summary;
+          showToast(errMsg, "warn");
+        }
+      } catch (_) {
+        if (metaPublishStatus) metaPublishStatus.textContent = "⚠ Network error reaching /api/meta/publish.";
+        showToast("Network error publishing to Meta.", "warn");
+      } finally {
+        btnMetaPublishNow.disabled = false;
+      }
+    });
+  }
+
+  async function copyCaptionAndOpen(url, label) {
+    const caption = metaCaptionInput ? metaCaptionInput.value : "";
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText && caption) {
+        await navigator.clipboard.writeText(caption);
+        showToast("Copied campaign caption! Opening " + label + "...", "success");
+      }
+    } catch (_) {}
+    window.open(url, "_blank", "noopener");
+  }
+
+  const btnMetaOpenSuite = $("#btn-meta-open-suite");
+  if (btnMetaOpenSuite) {
+    btnMetaOpenSuite.addEventListener("click", () =>
+      copyCaptionAndOpen("https://business.facebook.com/latest/composer", "Meta Business Suite Composer")
+    );
+  }
+  const btnMetaOpenFb = $("#btn-meta-open-fb");
+  if (btnMetaOpenFb) {
+    btnMetaOpenFb.addEventListener("click", () =>
+      copyCaptionAndOpen("https://www.facebook.com/aquapcsolutions", "Facebook Page (@aquapcsolutions)")
+    );
+  }
+
   function refreshAllUI() {
     updateKPIs();
     populateDeptDropdown();
     syncAddFormDropdowns();
     renderItemsTable();
     updateUnsavedUI();
+    populateMetaItemPicker();
+    if (metaCaptionInput && !metaCaptionInput.value.trim()) {
+      applyMetaTemplate(metaTemplateSelect ? metaTemplateSelect.value : "ecosystem");
+    }
+    updateMetaMediaHint();
+    loadMetaConnectionStatus();
   }
 
   window.addEventListener("aqua:catalog-updated", () => {

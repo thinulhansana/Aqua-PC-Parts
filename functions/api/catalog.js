@@ -3,7 +3,7 @@
 
 const CATALOG_KEY = "catalog_live_v1";
 const PASSCODE_KEY = "admin_passcode_v1";
-const DEFAULT_PASSCODE = "aqua2026";
+const DEFAULT_PASSCODE = "";
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
@@ -76,6 +76,13 @@ export async function onRequestPost(context) {
     if (env && env.AQUA_CATALOG_KV) {
       const customPass = await env.AQUA_CATALOG_KV.get(PASSCODE_KEY);
       if (customPass) expectedPass = customPass;
+    }
+
+    if (!expectedPass) {
+      return jsonResponse(
+        { ok: false, error: "Admin passcode is not configured." },
+        503
+      );
     }
 
     if (providedPass !== expectedPass) {

@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Verified Sri Lankan Custom Builds &amp; Lab Telemetry | Aqua PC Parts</title>
+  <link rel="icon" type="image/jpeg" href="assets/logo.jpg" />
+  <link rel="icon" type="image/png" sizes="192x192" href="/pwa-192x192.png" />
+  <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+  <link rel="manifest" href="/manifest.json" />
+  <meta
+    name="description"
+    content="Inspect verified Sri Lankan gaming &amp; workstation PC builds, 24h FurMark &amp; OCCT lab bench-test benchmarks, customer reviews, and 1-click PC Builder presets."
+  />
+  <meta name="referrer" content="no-referrer" />
+  <meta name="theme-color" content="#071138" />
+  <script>
+    (function () {
+      try {
+        var t = localStorage.getItem("aqua-parts-theme");
+        if (t === "light" || t === "dark") {
+          document.documentElement.setAttribute("data-theme", t);
+        }
+      } catch (_) {}
+    })();
+  </script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Syne:wght@700;800&display=swap"
+    rel="stylesheet"
+  />
+  <link
+    rel="stylesheet"
+    href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200"
+  />
+  <link rel="stylesheet" href="shop.css" />
+  <link rel="stylesheet" href="auth-panel.css" />
+</head>
+<body data-page="builds">
+
+  <div id="aqua-top-shell"></div>
+
+  <main class="ne-main">
+    <section class="ne-page-hero">
+      <div class="ne-container ne-page-hero-inner">
+        <div>
+          <div class="ne-page-crumbs">
+            <a href="./index.html">Home</a>
+            <span>/</span>
+            <span>Verified Builds &amp; Testing Lab</span>
+          </div>
+          <h1>Verified Customer Rigs &amp; 24h Bench Lab</h1>
+          <p>Real Sri Lankan builds stress-tested inside our Embilipitiya ESD Lab — inspect benchmarks, load any preset into Smart Builder, or track your live bench ticket.</p>
+        </div>
+        <div class="ne-page-hero-actions">
+          <a href="./pc-builder.html" class="ne-btn ne-btn-orange ne-btn-sm">Customize in Smart Builder</a>
+          <a href="https://aquapc3dportal.pages.dev/" class="ne-btn ne-btn-outline ne-btn-sm" style="color:#fff;border-color:rgba(255,255,255,.3)">Open 3D PC Studio ↗</a>
+        </div>
+      </div>
+    </section>
+
+    <!-- Verified Sri Lankan Builder Showcase & Customer Reviews -->
+    <section class="ne-builds-section" id="community-builds" aria-label="Verified Custom PC Builds and Reviews" style="padding-top:24px;">
+      <div class="ne-container">
+        <div class="ne-section-head">
+          <div class="ne-section-title-group">
+            <span class="ne-section-kicker">VERIFIED BENCH TELEMETRY · CUSTOMER REVIEWS</span>
+            <h2>Verified Sri Lankan Custom Builds &amp; Lab Benchmarks</h2>
+          </div>
+          <a href="./pc-builder.html" class="ne-link-more">Customize in Smart Builder →</a>
+        </div>
+        <div class="ne-builds-grid" id="community-builds-grid"></div>
+      </div>
+    </section>
+
+    <!-- Embilipitiya 24h ESD Lab Testing Protocols -->
+    <section class="ne-container" aria-label="24-Hour Stress Test Standards">
+      <div class="ne-section-head" style="margin-top:8px;">
+        <div class="ne-section-title-group">
+          <span class="ne-section-kicker">EMBILIPITIYA HARDWARE WORKSHOP</span>
+          <h2>Our 3-Point Hardware Certification Protocol</h2>
+        </div>
+      </div>
+      <div class="ne-lab-grid">
+        <div class="ne-step-card">
+          <span class="ne-step-num">TEST 01 · THERMAL &amp; VRAM</span>
+          <h3>FurMark 24h &amp; Hotspot Audit</h3>
+          <p>Every used GPU runs sustained FurMark &amp; memory load checks before shipping, complete with recorded peak core temperature and proof clip.</p>
+        </div>
+        <div class="ne-step-card">
+          <span class="ne-step-num">TEST 02 · CPU, RAM &amp; SMART</span>
+          <h3>OCCT Stability &amp; NVMe Health</h3>
+          <p>Processors, motherboards, and memory undergo full multi-thread stress and CrystalDiskInfo SMART verification prior to sealing.</p>
+        </div>
+        <div class="ne-step-card">
+          <span class="ne-step-num">TEST 03 · 06M WRITTEN WARRANTY</span>
+          <h3>ESD-Safe Dispatch Across Sri Lanka</h3>
+          <p>Items ship in anti-static sleeves and high-density foam with printed invoice, testing warranty terms, and live courier updates.</p>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <div id="aqua-bottom-shell"></div>
+
+  <script src="catalog.js"></script>
+  <script src="part-images.js"></script>
+  <script src="shell.js"></script>
+  <script src="shop.js"></script>
+  <script defer src="aqua-auth.bundle.js"></script>
+  <script defer src="pwa.js"></script>
+</body>
+</html>
+
