@@ -1,4 +1,4 @@
-const CACHE_VERSION = "aqua-pc-parts-v8";
+const CACHE_VERSION = "aqua-pc-parts-v9";
 const SHELL_ASSETS = [
   "/",
   "/index.html",
@@ -48,6 +48,10 @@ const BYPASS_HOSTS = [
   "maps.gstatic.com",
   "routes.googleapis.com",
   "places.googleapis.com",
+  "firebaseapp.com",
+  "firebaseinstallations.googleapis.com",
+  "facebook.com",
+  "graph.facebook.com",
 ];
 
 self.addEventListener("install", (event) => {
@@ -77,6 +81,7 @@ self.addEventListener("fetch", (event) => {
 
   const url = new URL(req.url);
   if (BYPASS_HOSTS.some((h) => url.hostname.includes(h))) return;
+  if (url.pathname.startsWith("/__/")) return;
   if (url.pathname.startsWith("/api/")) {
     // Network-first for live catalog API
     event.respondWith(

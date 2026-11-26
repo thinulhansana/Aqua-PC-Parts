@@ -1,46 +1,143 @@
-import { initializeApp } from "firebase/app";
-import {
-  initializeAppCheck,
-  ReCaptchaEnterpriseProvider,
-  getToken as getAppCheckToken,
-} from "firebase/app-check";
-import {
-  getAuth,
-  GoogleAuthProvider,
-  FacebookAuthProvider,
-  signInWithPopup,
-  signInWithEmailAndPassword,
-  createUserWithEmailAndPassword,
-  updateProfile,
-  sendPasswordResetEmail,
-  sendEmailVerification,
-  signOut as firebaseSignOut,
-  onAuthStateChanged,
-} from "firebase/auth";
-import {
-  getFirestore,
-  doc,
-  getDoc,
-  getDocFromServer,
-  setDoc,
-  updateDoc,
-  deleteDoc,
-  writeBatch,
-  collection,
-  query,
-  where,
-  onSnapshot,
-  serverTimestamp,
-} from "firebase/firestore";
 import firebaseConfig from "../firebase-applet-config.json";
 
-const app = initializeApp(firebaseConfig);
-const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
-const auth = getAuth(app);
-const googleProvider = new GoogleAuthProvider();
-googleProvider.setCustomParameters({ prompt: "select_account" });
-const facebookProvider = new FacebookAuthProvider();
-facebookProvider.addScope("email");
+const FIREBASE_CDN_BASE = "https://www.gstatic.com/firebasejs/11.10.0";
+const REDIRECT_STATE_KEY = "aqua-auth-pending-redirect-v1";
+
+let app = null;
+let db = null;
+let auth = null;
+let googleProvider = null;
+let facebookProvider = null;
+let fbAppCheck = null;
+let fbAuth = null;
+let fbFirestore = null;
+let firebaseInitPromise = null;
+
+function ensureFirebase() {
+  if (firebaseInitPromise) return firebaseInitPromise;
+  firebaseInitPromise = (async () => {
+    const [appMod, appCheckMod, authMod, firestoreMod] = await Promise.all([
+      import(FIREBASE_CDN_BASE + "/firebase-app.js"),
+      import(FIREBASE_CDN_BASE + "/firebase-app-check.js"),
+      import(FIREBASE_CDN_BASE + "/firebase-auth.js"),
+      import(FIREBASE_CDN_BASE + "/firebase-firestore.js"),
+    ]);
+    fbAppCheck = appCheckMod;
+    fbAuth = authMod;
+    fbFirestore = firestoreMod;
+
+    app = appMod.initializeApp(firebaseConfig);
+    db = firestoreMod.getFirestore(app, firebaseConfig.firestoreDatabaseId);
+    auth = authMod.getAuth(app);
+
+    googleProvider = new authMod.GoogleAuthProvider();
+    googleProvider.setCustomParameters({ prompt: "select_account" });
+
+    facebookProvider = new authMod.FacebookAuthProvider();
+    facebookProvider.addScope("email");
+
+    // Process OAuth redirect result if returning from signInWithRedirect fallback
+    try {
+      const redirectResult = await authMod.getRedirectResult(auth);
+      if (redirectResult && redirectResult.user) {
+        let savedRedirect = null;
+        try {
+          savedRedirect = JSON.parse(sessionStorage.getItem(REDIRECT_STATE_KEY) || "null");
+          sessionStorage.removeItem(REDIRECT_STATE_KEY);
+        } catch (_) {}
+
+        state.user = redirectResult.user;
+        await syncUserProfile(redirectResult.user);
+        const unlockedPayment = Boolean(savedRedirect && savedRedirect.paymentGate);
+        if (unlockedPayment) {
+          state.portalTab = "payments";
+          state.pendingPaymentRedirect = false;
+          state.paymentGateNotice = false;
+        }
+        state.modalOpen = true;
+        state.successMsg = unlockedPayment
+          ? "Account verified! Official bank details and the Payment Portal are now unlocked."
+          : "Signed in as " + getFirstName(redirectResult.user, state.profile) + "!";
+        renderHeaderSlot();
+        renderModalContent();
+        syncModalVisibility();
+        showPageToast("Signed in as " + getFirstName(redirectResult.user, state.profile));
+      } else {
+        try {
+          sessionStorage.removeItem(REDIRECT_STATE_KEY);
+        } catch (_) {}
+      }
+    } catch (redirectErr) {
+      let savedRedirect = null;
+      try {
+        savedRedirect = JSON.parse(sessionStorage.getItem(REDIRECT_STATE_KEY) || "null");
+        sessionStorage.removeItem(REDIRECT_STATE_KEY);
+      } catch (_) {}
+      const label = savedRedirect && savedRedirect.provider === "facebook" ? "Facebook" : "Google";
+      state.errorMsg = mapProviderAuthError(redirectErr, label);
+      state.modalOpen = true;
+      renderModalContent();
+      syncModalVisibility();
+    }
+
+    authMod.onAuthStateChanged(auth, async (user) => {
+      state.ready = true;
+      state.user = user || null;
+      if (user) {
+        await syncUserProfile(user);
+        attachQuotesListener(user);
+        attachOrdersListener(user);
+        attachBankDetailsListener(user);
+        attachPaymentsListener(user);
+        consumePendingPaymentRedirect();
+      } else {
+        state.profile = null;
+        detachQuotesListener();
+        detachOrdersListener();
+        detachBankDetailsListener();
+        detachPaymentsListener();
+      }
+      renderHeaderSlot();
+      if (state.modalOpen && !state.busy) renderModalContent();
+      if (state.trackOpen) renderTrackModal();
+    });
+
+    attachInventoryListener();
+    return true;
+  })().catch((err) => {
+    firebaseInitPromise = null;
+    console.error("Failed to initialize Firebase SDK:", err);
+    throw err;
+  });
+  return firebaseInitPromise;
+}
+
+const initializeAppCheck = (...args) => fbAppCheck.initializeAppCheck(...args);
+class ReCaptchaEnterpriseProvider {
+  constructor(siteKey) {
+    return new fbAppCheck.ReCaptchaEnterpriseProvider(siteKey);
+  }
+}
+const getAppCheckToken = (...args) => fbAppCheck.getToken(...args);
+const signInWithPopup = (...args) => fbAuth.signInWithPopup(...args);
+const signInWithRedirect = (...args) => fbAuth.signInWithRedirect(...args);
+const signInWithEmailAndPassword = (...args) => fbAuth.signInWithEmailAndPassword(...args);
+const createUserWithEmailAndPassword = (...args) => fbAuth.createUserWithEmailAndPassword(...args);
+const updateProfile = (...args) => fbAuth.updateProfile(...args);
+const sendPasswordResetEmail = (...args) => fbAuth.sendPasswordResetEmail(...args);
+const sendEmailVerification = (...args) => fbAuth.sendEmailVerification(...args);
+const firebaseSignOut = (...args) => fbAuth.signOut(...args);
+const doc = (...args) => fbFirestore.doc(...args);
+const getDoc = (...args) => fbFirestore.getDoc(...args);
+const setDoc = (...args) => fbFirestore.setDoc(...args);
+const updateDoc = (...args) => fbFirestore.updateDoc(...args);
+const deleteDoc = (...args) => fbFirestore.deleteDoc(...args);
+const writeBatch = (...args) => fbFirestore.writeBatch(...args);
+const collection = (...args) => fbFirestore.collection(...args);
+const query = (...args) => fbFirestore.query(...args);
+const where = (...args) => fbFirestore.where(...args);
+const onSnapshot = (...args) => fbFirestore.onSnapshot(...args);
+const serverTimestamp = (...args) => fbFirestore.serverTimestamp(...args);
 
 let appCheckInstance = null;
 let recaptchaInitPromise = null;
@@ -72,6 +169,7 @@ function initRecaptchaEnterprise() {
     const siteKey = await resolveRecaptchaSiteKey();
     if (!siteKey) return false;
     try {
+      await ensureFirebase();
       appCheckInstance = initializeAppCheck(app, {
         provider: new ReCaptchaEnterpriseProvider(siteKey),
         isTokenAutoRefreshEnabled: true,
@@ -157,16 +255,7 @@ function handleFirestoreError(error, operationType, path) {
   throw new Error(JSON.stringify(errInfo));
 }
 
-async function testConnection() {
-  try {
-    await getDocFromServer(doc(db, "test", "connection"));
-  } catch (error) {
-    if (error instanceof Error && error.message.includes("the client is offline")) {
-      console.error("Please check your Firebase configuration.");
-    }
-  }
-}
-testConnection();
+// Connection verified via real-time inventoryOverrides listener upon Firebase SDK load.
 
 // Blueprint validation constants (synchronized with firebase-blueprint.json)
 const LIMITS = {
@@ -955,16 +1044,17 @@ function mapProviderAuthError(error, providerLabel) {
     return RECAPTCHA_ERROR_MESSAGE;
   }
   if (code === "auth/popup-closed-by-user" || code === "auth/cancelled-popup-request") {
-    return providerLabel + " sign-in popup was closed. Click Continue with " + providerLabel + " to try again.";
+    return providerLabel + " sign-in popup was closed before completing. Click Continue with " + providerLabel + " to try again.";
   }
   if (code === "auth/popup-blocked") {
-    return "Your browser blocked the " + providerLabel + " sign-in popup. Please allow popups for this site or sign in with Email & Password below.";
+    return "Your browser blocked the " + providerLabel + " sign-in popup. Redirecting or allow popups for this site, or use Email & Password below.";
   }
   if (code === "auth/unauthorized-domain") {
-    return "This domain (" + window.location.hostname + ") is not authorized in Firebase Console → Authentication → Settings → Authorized domains.";
+    const host = window.location.hostname || window.location.origin;
+    return "Domain '" + host + "' is not authorized in Firebase Console (Project " + firebaseConfig.projectId + " → Authentication → Settings → Authorized domains). Add '" + host + "' there, or sign in via Email & Password below.";
   }
   if (code === "auth/operation-not-allowed") {
-    return providerLabel + " Login is not yet enabled in Firebase Console (Authentication → Sign-in method → " + providerLabel + ").";
+    return providerLabel + " Login is not enabled in Firebase Console (Project " + firebaseConfig.projectId + " → Authentication → Sign-in method → " + providerLabel + "). Use Google or Email & Password below until enabled.";
   }
   if (code === "auth/account-exists-with-different-credential") {
     return "An account already exists with this email address using another sign-in method. Please sign in with that method instead.";
@@ -978,6 +1068,30 @@ function mapProviderAuthError(error, providerLabel) {
   return "Unable to complete " + providerLabel + " sign-in" + (code ? " (" + code + ")" : "") + ". Please try again.";
 }
 
+function shouldFallbackToRedirect(error) {
+  const code = error && error.code ? String(error.code) : "";
+  return (
+    code === "auth/popup-blocked" ||
+    code === "auth/operation-not-supported-in-this-environment" ||
+    code === "auth/cancelled-popup-request"
+  );
+}
+
+async function startOAuthRedirect(providerKey, providerObj, wasPaymentGate) {
+  try {
+    sessionStorage.setItem(
+      REDIRECT_STATE_KEY,
+      JSON.stringify({
+        provider: providerKey,
+        paymentGate: Boolean(wasPaymentGate),
+        authMode: state.authMode,
+        ts: Date.now(),
+      })
+    );
+  } catch (_) {}
+  await signInWithRedirect(auth, providerObj);
+}
+
 async function signInWithGoogle() {
   if (state.busy) return;
   const wasPaymentGate = state.pendingPaymentRedirect || state.portalTab === "payments";
@@ -987,6 +1101,7 @@ async function signInWithGoogle() {
   renderModalContent();
 
   try {
+    await ensureFirebase();
     if (appCheckInstance) {
       getAppCheckToken(appCheckInstance, false).catch(() => {});
     }
@@ -1008,6 +1123,14 @@ async function signInWithGoogle() {
     renderModalContent();
     showPageToast("Signed in as " + getFirstName(user, state.profile));
   } catch (error) {
+    if (shouldFallbackToRedirect(error) && auth && googleProvider) {
+      try {
+        await startOAuthRedirect("google", googleProvider, wasPaymentGate);
+        return;
+      } catch (redirErr) {
+        error = redirErr;
+      }
+    }
     state.busy = false;
     state.errorMsg = mapProviderAuthError(error, "Google");
     renderModalContent();
@@ -1023,6 +1146,7 @@ async function signInWithFacebook() {
   renderModalContent();
 
   try {
+    await ensureFirebase();
     if (appCheckInstance) {
       getAppCheckToken(appCheckInstance, false).catch(() => {});
     }
@@ -1044,6 +1168,14 @@ async function signInWithFacebook() {
     renderModalContent();
     showPageToast("Signed in as " + getFirstName(user, state.profile));
   } catch (error) {
+    if (shouldFallbackToRedirect(error) && auth && facebookProvider) {
+      try {
+        await startOAuthRedirect("facebook", facebookProvider, wasPaymentGate);
+        return;
+      } catch (redirErr) {
+        error = redirErr;
+      }
+    }
     state.busy = false;
     state.errorMsg = mapProviderAuthError(error, "Facebook");
     renderModalContent();
@@ -1105,6 +1237,7 @@ async function signInWithEmail(emailRaw, passwordRaw) {
   renderModalContent();
 
   try {
+    await ensureFirebase();
     await ensureRecaptchaVerification();
     const cred = await signInWithEmailAndPassword(auth, email, password);
     state.user = cred.user;
@@ -1158,6 +1291,7 @@ async function registerWithEmail(nameRaw, emailRaw, passwordRaw) {
   renderModalContent();
 
   try {
+    await ensureFirebase();
     await ensureRecaptchaVerification();
     const cred = await createUserWithEmailAndPassword(auth, email, password);
     state.user = cred.user;
@@ -1202,6 +1336,7 @@ async function resetPasswordWithEmail(emailRaw) {
   renderModalContent();
 
   try {
+    await ensureFirebase();
     await ensureRecaptchaVerification();
     await sendPasswordResetEmail(auth, email);
     state.busy = false;
@@ -3502,50 +3637,60 @@ function lookupOrderTracking(rawCode) {
   renderTrackModal();
 
   const path = "orderTracking/" + code;
-  state.trackUnsub = onSnapshot(
-    doc(db, "orderTracking", code),
-    (snap) => {
-      state.trackLoading = false;
-      if (snap.exists()) {
-        state.trackResult = { id: snap.id, ...snap.data() };
-        state.trackNotFound = false;
-        state.trackError = "";
-      } else {
-        // Fallback for older orders owned by the currently signed-in customer
-        const owned = findLocalOwnedOrderByNumber(code);
-        if (owned) {
-          state.trackResult = {
-            orderNumber: owned.orderNumber,
-            orderId: owned.orderId || owned.id,
-            ownerId: owned.ownerId,
-            fulfillment: owned.fulfillment || "pickup",
-            deliveryRegion: owned.deliveryCity || "",
-            itemCount: owned.itemCount || 1,
-            status: owned.status || "received",
-            statusNote: owned.statusNote || "",
-            createdAt: owned.createdAt,
-            updatedAt: owned.updatedAt,
-          };
-          state.trackNotFound = false;
-          state.trackError = "";
-        } else {
-          state.trackResult = null;
-          state.trackNotFound = true;
+  ensureFirebase()
+    .then(() => {
+      detachTrackListener();
+      state.trackUnsub = onSnapshot(
+        doc(db, "orderTracking", code),
+        (snap) => {
+          state.trackLoading = false;
+          if (snap.exists()) {
+            state.trackResult = { id: snap.id, ...snap.data() };
+            state.trackNotFound = false;
+            state.trackError = "";
+          } else {
+            // Fallback for older orders owned by the currently signed-in customer
+            const owned = findLocalOwnedOrderByNumber(code);
+            if (owned) {
+              state.trackResult = {
+                orderNumber: owned.orderNumber,
+                orderId: owned.orderId || owned.id,
+                ownerId: owned.ownerId,
+                fulfillment: owned.fulfillment || "pickup",
+                deliveryRegion: owned.deliveryCity || "",
+                itemCount: owned.itemCount || 1,
+                status: owned.status || "received",
+                statusNote: owned.statusNote || "",
+                createdAt: owned.createdAt,
+                updatedAt: owned.updatedAt,
+              };
+              state.trackNotFound = false;
+              state.trackError = "";
+            } else {
+              state.trackResult = null;
+              state.trackNotFound = true;
+            }
+          }
+          renderTrackModal();
+        },
+        (error) => {
+          state.trackLoading = false;
+          try {
+            handleFirestoreError(error, OperationType.GET, path);
+          } catch (_) {
+            state.trackError = "Unable to connect to live order tracking right now. Please try again.";
+            state.trackResult = null;
+            renderTrackModal();
+          }
         }
-      }
-      renderTrackModal();
-    },
-    (error) => {
+      );
+    })
+    .catch(() => {
       state.trackLoading = false;
-      try {
-        handleFirestoreError(error, OperationType.GET, path);
-      } catch (_) {
-        state.trackError = "Unable to connect to live order tracking right now. Please try again.";
-        state.trackResult = null;
-        renderTrackModal();
-      }
-    }
-  );
+      state.trackError = "Unable to initialize live order tracking right now. Please try again.";
+      state.trackResult = null;
+      renderTrackModal();
+    });
 }
 
 function buildTrackWhatsAppHref(orderNumber, statusLabel) {
@@ -3886,31 +4031,8 @@ document.addEventListener("keydown", (e) => {
   }
 });
 
-// Auth state subscription
-onAuthStateChanged(auth, async (user) => {
-  state.ready = true;
-  state.user = user || null;
-  if (user) {
-    await syncUserProfile(user);
-    attachQuotesListener(user);
-    attachOrdersListener(user);
-    attachBankDetailsListener(user);
-    attachPaymentsListener(user);
-    consumePendingPaymentRedirect();
-  } else {
-    state.profile = null;
-    detachQuotesListener();
-    detachOrdersListener();
-    detachBankDetailsListener();
-    detachPaymentsListener();
-  }
-  renderHeaderSlot();
-  if (state.modalOpen && !state.busy) renderModalContent();
-  if (state.trackOpen) renderTrackModal();
-});
-
-// Start real-time Firestore live stock subscription for all storefront visitors
-attachInventoryListener();
+// Boot Firebase SDK & Auth state subscription asynchronously
+ensureFirebase().catch(() => {});
 
 // Expose global APIs for storefront & Admin Console
 window.AquaAuth = {
