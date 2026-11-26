@@ -136,6 +136,53 @@ service cloud.firestore {
         data.updatedAt is timestamp;
     }
 
+    function isValidBankTransferSettings(data) {
+      return data.keys().hasAll([
+          'bankName', 'accountName', 'accountNumber', 'branch', 'updatedAt', 'updatedBy'
+        ]) &&
+        data.keys().hasOnly([
+          'bankName', 'accountName', 'accountNumber', 'branch', 'swiftCode', 'instructions', 'updatedAt', 'updatedBy'
+        ]) &&
+        data.bankName is string && data.bankName.size() >= 2 && data.bankName.size() <= 100 &&
+        data.accountName is string && data.accountName.size() >= 2 && data.accountName.size() <= 120 &&
+        data.accountNumber is string && data.accountNumber.size() >= 4 && data.accountNumber.size() <= 48 && data.accountNumber.matches('^[A-Za-z0-9\\-\\s]+$') &&
+        data.branch is string && data.branch.size() >= 2 && data.branch.size() <= 100 &&
+        (!('swiftCode' in data) || (data.swiftCode is string && data.swiftCode.size() <= 32)) &&
+        (!('instructions' in data) || (data.instructions is string && data.instructions.size() <= 400)) &&
+        data.updatedAt is timestamp &&
+        data.updatedBy is string && isValidId(data.updatedBy);
+    }
+
+    function isValidPayment(data, paymentId) {
+      return data.keys().hasAll([
+          'paymentId', 'paymentRef', 'ownerId', 'customerName', 'customerEmail',
+          'amountLkr', 'paymentMethod', 'bankReference', 'depositorName', 'transferDate',
+          'status', 'createdAt', 'updatedAt'
+        ]) &&
+        data.keys().hasOnly([
+          'paymentId', 'paymentRef', 'ownerId', 'customerName', 'customerEmail',
+          'customerPhone', 'orderNumber', 'amountLkr', 'paymentMethod', 'bankReference',
+          'depositorName', 'transferDate', 'note', 'status', 'adminNote', 'createdAt', 'updatedAt'
+        ]) &&
+        data.paymentId is string && data.paymentId == paymentId && isValidId(data.paymentId) &&
+        data.paymentRef is string && isValidOrderNumber(data.paymentRef) &&
+        data.ownerId is string && isValidId(data.ownerId) &&
+        data.customerName is string && data.customerName.size() >= 1 && data.customerName.size() <= 100 &&
+        data.customerEmail is string && data.customerEmail.size() >= 3 && data.customerEmail.size() <= 254 &&
+        (!('customerPhone' in data) || (data.customerPhone is string && data.customerPhone.size() <= 32 && data.customerPhone.matches('^[0-9+\\-\\s()]*$'))) &&
+        (!('orderNumber' in data) || (data.orderNumber == '' || isValidOrderNumber(data.orderNumber))) &&
+        (data.amountLkr is int || data.amountLkr is float) && data.amountLkr >= 1 && data.amountLkr <= 100000000 &&
+        data.paymentMethod is string && data.paymentMethod in ['bank_transfer', 'online_transfer', 'ceft_instant', 'cash_deposit'] &&
+        data.bankReference is string && data.bankReference.size() >= 2 && data.bankReference.size() <= 80 &&
+        data.depositorName is string && data.depositorName.size() >= 1 && data.depositorName.size() <= 100 &&
+        data.transferDate is string && data.transferDate.size() >= 4 && data.transferDate.size() <= 32 &&
+        (!('note' in data) || (data.note is string && data.note.size() <= 240)) &&
+        data.status is string && data.status in ['pending_verification', 'verified', 'rejected', 'cancelled'] &&
+        (!('adminNote' in data) || (data.adminNote is string && data.adminNote.size() <= 240)) &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
     // ── /users/{userId} (Private PII Customer Profiles) ────────────────────
     match /users/{userId} {
       allow get: if isSignedIn() && isValidId(userId) && (isOwner(userId) || isAdmin());
@@ -159,14 +206,15 @@ service cloud.firestore {
           isAdmin() ||
           (
             isOwner(userId) &&
-            incoming().uid == request.auth.uid &&
-            incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'email', 'photoURL', 'phone', 'city', 'updatedAt'])
+            incoming().diff(existing()).affectedKeys().hasOnly([
+              'displayName', 'photoURL', 'phone', 'city', 'updatedAt'
+            ])
           )
         );
 
-      allow delete: if isSignedIn() && isValidId(userId) && (isOwner(userId) || isAdmin());
+      allow delete: if isAdmin() && isValidId(userId);
 
-      // ── /users/{userId}/savedQuotes/{quoteId} (Customer Saved Quotes) ────
+      // ── /users/{userId}/savedQuotes/{quoteId} (Master Gate Enforced) ───
       match /savedQuotes/{quoteId} {
         allow get: if isSignedIn() &&
           isValidId(userId) &&
@@ -176,7 +224,7 @@ service cloud.firestore {
 
         allow list: if isSignedIn() &&
           isValidId(userId) &&
-          ((isOwner(userId) && resource.data.ownerId == request.auth.uid) || isBootstrapAdmin());
+          (resource.data.ownerId == request.auth.uid || isBootstrapAdmin());
 
         allow create: if isSignedIn() &&
           isValidId(userId) &&
@@ -200,8 +248,9 @@ service cloud.firestore {
             isAdmin() ||
             (
               isOwner(userId) &&
-              incoming().ownerId == request.auth.uid &&
-              incoming().diff(existing()).affectedKeys().hasOnly(['title', 'itemCount', 'totalLkr', 'summary', 'fulfillment', 'updatedAt'])
+              incoming().diff(existing()).affectedKeys().hasOnly([
+                'title', 'itemCount', 'totalLkr', 'summary', 'fulfillment', 'updatedAt'
+              ])
             )
           );
 
@@ -318,6 +367,69 @@ service cloud.firestore {
         );
 
       allow delete: if isAdmin() && isValidOrderNumber(orderNumber);
+    }
+
+    // ── /storeSettings/{settingId} (Login-Gated Official Bank Transfer Details) ─
+    match /storeSettings/{settingId} {
+      // Strictly visible ONLY after user login; never exposed to guests or list queries
+      allow get: if isSignedIn() && settingId == 'bankTransfer';
+      allow list: if false;
+
+      allow create: if isAdmin() &&
+        settingId == 'bankTransfer' &&
+        isValidBankTransferSettings(incoming()) &&
+        incoming().updatedBy == request.auth.uid &&
+        incoming().updatedAt == request.time;
+
+      allow update: if isAdmin() &&
+        settingId == 'bankTransfer' &&
+        isValidBankTransferSettings(incoming()) &&
+        incoming().updatedBy == request.auth.uid &&
+        incoming().updatedAt == request.time;
+
+      allow delete: if isAdmin() && settingId == 'bankTransfer';
+    }
+
+    // ── /payments/{paymentId} (Authenticated Buyer Payment Portal Records) ─
+    match /payments/{paymentId} {
+      allow get: if isSignedIn() &&
+        isValidId(paymentId) &&
+        (existing().ownerId == request.auth.uid || isAdmin());
+
+      allow list: if isSignedIn() &&
+        (resource.data.ownerId == request.auth.uid || isBootstrapAdmin());
+
+      allow create: if isSignedIn() &&
+        isValidId(paymentId) &&
+        isValidPayment(incoming(), paymentId) &&
+        incoming().ownerId == request.auth.uid &&
+        incoming().status == 'pending_verification' &&
+        (!('adminNote' in incoming()) || incoming().adminNote == '') &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time;
+
+      allow update: if isSignedIn() &&
+        isValidId(paymentId) &&
+        isValidPayment(incoming(), paymentId) &&
+        incoming().paymentId == existing().paymentId &&
+        incoming().paymentRef == existing().paymentRef &&
+        incoming().ownerId == existing().ownerId &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedAt == request.time &&
+        (
+          (
+            isAdmin() &&
+            incoming().diff(existing()).affectedKeys().hasOnly(['status', 'adminNote', 'updatedAt'])
+          ) ||
+          (
+            existing().ownerId == request.auth.uid &&
+            existing().status == 'pending_verification' &&
+            incoming().status == 'cancelled' &&
+            incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt'])
+          )
+        );
+
+      allow delete: if isAdmin() && isValidId(paymentId);
     }
   }
 }

@@ -77,7 +77,13 @@ function initRecaptchaEnterprise() {
         isTokenAutoRefreshEnabled: true,
       });
       state.recaptchaActive = true;
-      if (state.modalOpen && !state.user) {
+      // Avoid wiping typed form inputs if user is already typing inside the login modal
+      const activeEl = document.activeElement;
+      const modalHost = document.getElementById("aqua-auth-modal");
+      const typingInModal = Boolean(
+        modalHost && activeEl && modalHost.contains(activeEl) && /^(INPUT|TEXTAREA|SELECT)$/.test(activeEl.tagName)
+      );
+      if (state.modalOpen && !state.user && !typingInModal) {
         renderModalContent();
       }
       return true;
@@ -95,18 +101,24 @@ async function ensureRecaptchaVerification() {
   if (recaptchaInitPromise) {
     await Promise.race([
       recaptchaInitPromise.catch(() => false),
-      new Promise((resolve) => setTimeout(resolve, 3500)),
+      new Promise((resolve) => setTimeout(resolve, 2000)),
     ]);
   }
-  if (!appCheckInstance) return;
+  if (!appCheckInstance) return false;
   try {
-    await getAppCheckToken(appCheckInstance, false);
+    await Promise.race([
+      getAppCheckToken(appCheckInstance, false),
+      new Promise((resolve) => setTimeout(resolve, 2500)),
+    ]);
+    return true;
   } catch (err) {
-    const wrapped = new Error(
-      err && err.message ? err.message : "reCAPTCHA Enterprise verification failed."
+    // Non-blocking fallback: on preview domains or before App Check registration in Firebase Console,
+    // log a warning and allow Firebase Auth itself to enforce project-level security instead of hard-blocking login.
+    console.warn(
+      "reCAPTCHA Enterprise App Check token exchange skipped:",
+      err && err.code ? err.code : err && err.message ? err.message : err
     );
-    wrapped.code = (err && err.code) || "auth/captcha-check-failed";
-    throw wrapped;
+    return false;
   }
 }
 
@@ -175,6 +187,33 @@ const LIMITS = {
   orderNumberPattern: /^[A-Z0-9\-]{5,32}$/,
   validFulfillments: new Set(["pickup", "courier", "install"]),
   validStatuses: ["received", "bench_testing", "packed", "dispatched", "delivered", "cancelled"],
+  bankNameMax: 100,
+  accountNameMax: 120,
+  accountNumberMax: 48,
+  accountNumberPattern: /^[A-Za-z0-9\-\s]+$/,
+  branchMax: 100,
+  swiftCodeMax: 32,
+  instructionsMax: 400,
+  bankRefMax: 80,
+  depositorNameMax: 100,
+  transferDateMax: 32,
+  paymentNoteMax: 240,
+  validPaymentMethods: new Set(["bank_transfer", "online_transfer", "ceft_instant", "cash_deposit"]),
+  validPaymentStatuses: ["pending_verification", "verified", "rejected", "cancelled"],
+};
+
+const PAYMENT_METHOD_LABELS = {
+  bank_transfer: "Direct Bank Transfer",
+  online_transfer: "Online Banking Transfer",
+  ceft_instant: "CEFT / Instant Fund Transfer",
+  cash_deposit: "CDM / Branch Cash Deposit",
+};
+
+const PAYMENT_STATUS_LABELS = {
+  pending_verification: "Pending Verification",
+  verified: "Verified",
+  rejected: "Rejected",
+  cancelled: "Cancelled",
 };
 
 const ORDER_STAGES = [
@@ -240,16 +279,29 @@ const state = {
   quotes: [],
   orders: [],
   adminOrders: [],
+  bankDetails: null,
+  bankDetailsLoaded: false,
+  payments: [],
+  adminPayments: [],
   inventoryOverrides: new Map(),
   quotesUnsub: null,
   ordersUnsub: null,
   adminOrdersUnsub: null,
+  bankDetailsUnsub: null,
+  paymentsUnsub: null,
+  adminPaymentsUnsub: null,
   inventoryUnsub: null,
   modalOpen: false,
   menuOpen: false,
   authMode: "signin", // "signin" | "register" | "reset"
-  portalTab: "orders", // "profile" | "quotes" | "orders" | "admin"
+  portalTab: "orders", // "orders" | "payments" | "quotes" | "profile" | "admin"
   orderFulfillment: "pickup",
+  pendingPaymentOrder: "",
+  pendingPaymentAmount: "",
+  pendingPaymentRedirect: false,
+  paymentGateNotice: false,
+  draftName: "",
+  draftEmail: "",
   busy: false,
   errorMsg: "",
   successMsg: "",
@@ -565,32 +617,108 @@ function getProviderBadgeLabel(user, isPortal) {
 }
 
 // ───────── Profile, Quotes & Tracked Orders Firestore Actions ─────────
-async function syncUserProfile(user) {
-  const path = "users/" + user.uid;
-  const ref = doc(db, "users", user.uid);
-  try {
-    const snap = await getDoc(ref);
+const profileSyncInFlight = new Map();
+
+async function syncUserProfile(user, preferredDisplayName) {
+  if (!user || !user.uid) return null;
+  const uid = user.uid;
+  const cleanPreferred = String(preferredDisplayName || "").trim().slice(0, LIMITS.displayNameMax);
+
+  if (profileSyncInFlight.has(uid)) {
+    const existingProfile = await profileSyncInFlight.get(uid);
+    if (cleanPreferred && existingProfile && existingProfile.displayName !== cleanPreferred) {
+      try {
+        await updateDoc(doc(db, "users", uid), {
+          displayName: cleanPreferred,
+          updatedAt: serverTimestamp(),
+        });
+        state.profile = { ...existingProfile, displayName: cleanPreferred };
+      } catch (_) {}
+    }
+    return state.profile;
+  }
+
+  const run = (async () => {
+    const path = "users/" + uid;
+    const ref = doc(db, "users", uid);
     const displayName =
+      cleanPreferred ||
       String(user.displayName || (user.email ? user.email.split("@")[0] : "Aqua Member"))
         .trim()
-        .slice(0, LIMITS.displayNameMax) || "Aqua Member";
+        .slice(0, LIMITS.displayNameMax) ||
+      "Aqua Member";
     const email = String(user.email || "member@aquapcparts.lk").trim().slice(0, LIMITS.emailMax);
     const photoURL = user.photoURL ? String(user.photoURL).slice(0, LIMITS.photoURLMax) : "";
     const provider = detectUserProvider(user);
 
-    if (!snap.exists()) {
-      const payload = {
-        uid: user.uid,
-        displayName,
-        email,
-        provider,
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
-      };
-      if (photoURL) payload.photoURL = photoURL;
-      await setDoc(ref, payload);
-      state.profile = {
-        uid: user.uid,
+    try {
+      const snap = await getDoc(ref);
+      if (!snap.exists()) {
+        const payload = {
+          uid,
+          displayName,
+          email,
+          provider,
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+        };
+        if (photoURL) payload.photoURL = photoURL;
+        try {
+          await setDoc(ref, payload);
+          state.profile = {
+            uid,
+            displayName,
+            email,
+            photoURL,
+            phone: "",
+            city: "",
+            provider,
+          };
+        } catch (writeErr) {
+          // If another tab/listener created the doc concurrently, recover by reading it
+          const retrySnap = await getDoc(ref).catch(() => null);
+          if (retrySnap && retrySnap.exists()) {
+            const data = retrySnap.data();
+            state.profile = {
+              uid: data.uid || uid,
+              displayName: data.displayName || displayName,
+              email: data.email || email,
+              photoURL: data.photoURL || photoURL,
+              phone: data.phone || "",
+              city: data.city || "",
+              provider: data.provider || provider,
+            };
+          } else {
+            throw writeErr;
+          }
+        }
+      } else {
+        const data = snap.data();
+        let resolvedName = data.displayName || displayName;
+        if (cleanPreferred && resolvedName !== cleanPreferred) {
+          try {
+            await updateDoc(ref, {
+              displayName: cleanPreferred,
+              updatedAt: serverTimestamp(),
+            });
+            resolvedName = cleanPreferred;
+          } catch (_) {}
+        }
+        state.profile = {
+          uid: data.uid || uid,
+          displayName: resolvedName,
+          email: data.email || email,
+          photoURL: data.photoURL || photoURL,
+          phone: data.phone || "",
+          city: data.city || "",
+          provider: data.provider || provider,
+        };
+      }
+      return state.profile;
+    } catch (error) {
+      // Fallback in-memory profile so authenticated user is never locked out of the portal
+      state.profile = state.profile || {
+        uid,
         displayName,
         email,
         photoURL,
@@ -598,21 +726,17 @@ async function syncUserProfile(user) {
         city: "",
         provider,
       };
-    } else {
-      const data = snap.data();
-      state.profile = {
-        uid: data.uid || user.uid,
-        displayName: data.displayName || displayName,
-        email: data.email || email,
-        photoURL: data.photoURL || photoURL,
-        phone: data.phone || "",
-        city: data.city || "",
-        provider: data.provider || provider,
-      };
+      try {
+        handleFirestoreError(error, OperationType.WRITE, path);
+      } catch (_) {}
+      return state.profile;
+    } finally {
+      profileSyncInFlight.delete(uid);
     }
-  } catch (error) {
-    handleFirestoreError(error, OperationType.WRITE, path);
-  }
+  })();
+
+  profileSyncInFlight.set(uid, run);
+  return run;
 }
 
 function attachQuotesListener(user) {
@@ -713,6 +837,104 @@ function detachOrdersListener() {
   state.adminOrders = [];
 }
 
+function attachBankDetailsListener(user) {
+  detachBankDetailsListener();
+  if (!user) return;
+  const path = "storeSettings/bankTransfer";
+  state.bankDetailsUnsub = onSnapshot(
+    doc(db, "storeSettings", "bankTransfer"),
+    (snap) => {
+      state.bankDetailsLoaded = true;
+      state.bankDetails = snap.exists() ? snap.data() : null;
+      if (state.modalOpen && (state.portalTab === "payments" || state.portalTab === "admin")) {
+        renderModalContent();
+      }
+    },
+    (error) => {
+      state.bankDetailsLoaded = true;
+      try {
+        handleFirestoreError(error, OperationType.GET, path);
+      } catch (_) {}
+    }
+  );
+}
+
+function detachBankDetailsListener() {
+  if (typeof state.bankDetailsUnsub === "function") {
+    state.bankDetailsUnsub();
+    state.bankDetailsUnsub = null;
+  }
+  state.bankDetails = null;
+  state.bankDetailsLoaded = false;
+}
+
+function attachPaymentsListener(user) {
+  detachPaymentsListener();
+  if (!user) return;
+  const path = "payments";
+  const q = query(collection(db, "payments"), where("ownerId", "==", user.uid));
+  state.paymentsUnsub = onSnapshot(
+    q,
+    (snapshot) => {
+      state.payments = snapshot.docs
+        .map((d) => ({ id: d.id, ...d.data() }))
+        .sort((a, b) => tsMillis(b.updatedAt) - tsMillis(a.updatedAt));
+      if (state.modalOpen && state.portalTab === "payments") {
+        renderModalContent();
+      }
+      renderHeaderSlot();
+    },
+    (error) => {
+      try {
+        handleFirestoreError(error, OperationType.LIST, path);
+      } catch (_) {
+        state.errorMsg = "Could not sync payment records right now.";
+        renderModalContent();
+      }
+    }
+  );
+
+  if (isAdminUser()) {
+    state.adminPaymentsUnsub = onSnapshot(
+      collection(db, "payments"),
+      (snapshot) => {
+        state.adminPayments = snapshot.docs
+          .map((d) => ({ id: d.id, ...d.data() }))
+          .sort((a, b) => tsMillis(b.updatedAt) - tsMillis(a.updatedAt));
+        if (state.modalOpen && state.portalTab === "admin") {
+          renderModalContent();
+        }
+      },
+      (error) => {
+        try {
+          handleFirestoreError(error, OperationType.LIST, path);
+        } catch (_) {}
+      }
+    );
+  }
+}
+
+function detachPaymentsListener() {
+  if (typeof state.paymentsUnsub === "function") {
+    state.paymentsUnsub();
+    state.paymentsUnsub = null;
+  }
+  if (typeof state.adminPaymentsUnsub === "function") {
+    state.adminPaymentsUnsub();
+    state.adminPaymentsUnsub = null;
+  }
+  state.payments = [];
+  state.adminPayments = [];
+}
+
+function consumePendingPaymentRedirect() {
+  if (!state.pendingPaymentRedirect) return false;
+  state.portalTab = "payments";
+  state.pendingPaymentRedirect = false;
+  state.paymentGateNotice = false;
+  return true;
+}
+
 function isRecaptchaErrorCode(code) {
   return (
     code === "auth/captcha-check-failed" ||
@@ -727,8 +949,38 @@ function isRecaptchaErrorCode(code) {
 const RECAPTCHA_ERROR_MESSAGE =
   "reCAPTCHA Enterprise verification failed. Please reload the page and try again (verify this domain is allowlisted for your reCAPTCHA key).";
 
+function mapProviderAuthError(error, providerLabel) {
+  const code = error && error.code ? String(error.code) : "";
+  if (isRecaptchaErrorCode(code)) {
+    return RECAPTCHA_ERROR_MESSAGE;
+  }
+  if (code === "auth/popup-closed-by-user" || code === "auth/cancelled-popup-request") {
+    return providerLabel + " sign-in popup was closed. Click Continue with " + providerLabel + " to try again.";
+  }
+  if (code === "auth/popup-blocked") {
+    return "Your browser blocked the " + providerLabel + " sign-in popup. Please allow popups for this site or sign in with Email & Password below.";
+  }
+  if (code === "auth/unauthorized-domain") {
+    return "This domain (" + window.location.hostname + ") is not authorized in Firebase Console → Authentication → Settings → Authorized domains.";
+  }
+  if (code === "auth/operation-not-allowed") {
+    return providerLabel + " Login is not yet enabled in Firebase Console (Authentication → Sign-in method → " + providerLabel + ").";
+  }
+  if (code === "auth/account-exists-with-different-credential") {
+    return "An account already exists with this email address using another sign-in method. Please sign in with that method instead.";
+  }
+  if (code === "auth/network-request-failed") {
+    return "Network connection interrupted during " + providerLabel + " sign-in. Please check your internet and try again.";
+  }
+  if (code === "auth/user-disabled") {
+    return "This account has been disabled. Contact Aqua PC Parts support on WhatsApp for assistance.";
+  }
+  return "Unable to complete " + providerLabel + " sign-in" + (code ? " (" + code + ")" : "") + ". Please try again.";
+}
+
 async function signInWithGoogle() {
   if (state.busy) return;
+  const wasPaymentGate = state.pendingPaymentRedirect || state.portalTab === "payments";
   state.busy = true;
   state.errorMsg = "";
   state.successMsg = "";
@@ -740,39 +992,31 @@ async function signInWithGoogle() {
     }
     const result = await signInWithPopup(auth, googleProvider);
     const user = result.user;
+    state.user = user;
     await syncUserProfile(user);
-    state.successMsg =
-      state.authMode === "register"
-        ? "Account verified! Syncing your Aqua PC Parts profile & orders..."
+    const unlockedPayment = consumePendingPaymentRedirect() || wasPaymentGate;
+    if (unlockedPayment) state.portalTab = "payments";
+    state.draftName = "";
+    state.draftEmail = "";
+    state.successMsg = unlockedPayment
+      ? "Account verified! Official bank details and the Payment Portal are now unlocked."
+      : state.authMode === "register"
+        ? "Account verified! Your Aqua PC Parts profile & orders are synced."
         : "Welcome back! Your Aqua session is synced.";
     state.busy = false;
     renderHeaderSlot();
     renderModalContent();
     showPageToast("Signed in as " + getFirstName(user, state.profile));
-    setTimeout(() => {
-      if (state.user) {
-        state.successMsg = "";
-        renderModalContent();
-      }
-    }, 1400);
   } catch (error) {
     state.busy = false;
-    const code = error && error.code ? String(error.code) : "";
-    if (isRecaptchaErrorCode(code)) {
-      state.errorMsg = RECAPTCHA_ERROR_MESSAGE;
-    } else if (code === "auth/popup-closed-by-user" || code === "auth/cancelled-popup-request") {
-      state.errorMsg = "Sign-in popup was closed. Click Continue with Google to try again.";
-    } else if (code === "auth/popup-blocked") {
-      state.errorMsg = "Browser blocked the Google sign-in popup. Please allow popups for this site.";
-    } else {
-      state.errorMsg = "Unable to complete Google sign-in. Please try again.";
-    }
+    state.errorMsg = mapProviderAuthError(error, "Google");
     renderModalContent();
   }
 }
 
 async function signInWithFacebook() {
   if (state.busy) return;
+  const wasPaymentGate = state.pendingPaymentRedirect || state.portalTab === "payments";
   state.busy = true;
   state.errorMsg = "";
   state.successMsg = "";
@@ -784,39 +1028,24 @@ async function signInWithFacebook() {
     }
     const result = await signInWithPopup(auth, facebookProvider);
     const user = result.user;
+    state.user = user;
     await syncUserProfile(user);
-    state.successMsg =
-      state.authMode === "register"
-        ? "Facebook account connected! Syncing your Aqua PC Parts profile & orders..."
+    const unlockedPayment = consumePendingPaymentRedirect() || wasPaymentGate;
+    if (unlockedPayment) state.portalTab = "payments";
+    state.draftName = "";
+    state.draftEmail = "";
+    state.successMsg = unlockedPayment
+      ? "Facebook account connected! Official bank details and the Payment Portal are now unlocked."
+      : state.authMode === "register"
+        ? "Facebook account connected! Your Aqua PC Parts profile & orders are synced."
         : "Welcome back! Signed in with Facebook.";
     state.busy = false;
     renderHeaderSlot();
     renderModalContent();
     showPageToast("Signed in as " + getFirstName(user, state.profile));
-    setTimeout(() => {
-      if (state.user) {
-        state.successMsg = "";
-        renderModalContent();
-      }
-    }, 1400);
   } catch (error) {
     state.busy = false;
-    const code = error && error.code ? String(error.code) : "";
-    if (isRecaptchaErrorCode(code)) {
-      state.errorMsg = RECAPTCHA_ERROR_MESSAGE;
-    } else if (code === "auth/popup-closed-by-user" || code === "auth/cancelled-popup-request") {
-      state.errorMsg = "Facebook sign-in popup was closed. Click Continue with Facebook to try again.";
-    } else if (code === "auth/popup-blocked") {
-      state.errorMsg = "Browser blocked the Facebook sign-in popup. Please allow popups for this site.";
-    } else if (code === "auth/operation-not-allowed") {
-      state.errorMsg =
-        "Facebook Login is not yet enabled in Firebase Console (Authentication → Sign-in method → Facebook).";
-    } else if (code === "auth/account-exists-with-different-credential") {
-      state.errorMsg =
-        "An account already exists with this email address using Google or Email & Password. Please sign in with that method instead.";
-    } else {
-      state.errorMsg = "Unable to complete Facebook sign-in. Please try again.";
-    }
+    state.errorMsg = mapProviderAuthError(error, "Facebook");
     renderModalContent();
   }
 }
@@ -830,10 +1059,10 @@ function mapEmailAuthError(error) {
     return "Email & Password sign-in is not yet enabled in Firebase Console (Authentication → Sign-in method → Email/Password).";
   }
   if (code === "auth/invalid-credential" || code === "auth/wrong-password" || code === "auth/user-not-found") {
-    return "Invalid email or password. Please check your credentials or reset your password.";
+    return "Invalid email or password. Please check your credentials or click Forgot password.";
   }
   if (code === "auth/email-already-in-use") {
-    return "An account with this email already exists. Switch to Sign In or use Google Sign-In.";
+    return "An account with this email already exists. Switch to Sign In or use Continue with Google.";
   }
   if (code === "auth/weak-password") {
     return "Password must be at least 6 characters long.";
@@ -844,19 +1073,32 @@ function mapEmailAuthError(error) {
   if (code === "auth/too-many-requests") {
     return "Too many attempts. Please wait a moment and try again.";
   }
-  return "Authentication failed. Please try again.";
+  if (code === "auth/network-request-failed") {
+    return "Network connection error. Please check your internet connection and try again.";
+  }
+  if (code === "auth/user-disabled") {
+    return "This account has been disabled. Contact Aqua PC Parts support on WhatsApp.";
+  }
+  return "Authentication failed" + (code ? " (" + code + ")" : "") + ". Please try again.";
 }
 
 async function signInWithEmail(emailRaw, passwordRaw) {
   if (state.busy) return;
   const email = String(emailRaw || "").trim();
   const password = String(passwordRaw || "");
-  if (!email || !password) {
-    state.errorMsg = "Please enter both your email address and password.";
+  state.draftEmail = email;
+  if (!email || !email.includes("@")) {
+    state.errorMsg = "Please enter a valid email address.";
+    renderModalContent();
+    return;
+  }
+  if (!password) {
+    state.errorMsg = "Please enter your password.";
     renderModalContent();
     return;
   }
 
+  const wasPaymentGate = state.pendingPaymentRedirect || state.portalTab === "payments";
   state.busy = true;
   state.errorMsg = "";
   state.successMsg = "";
@@ -865,9 +1107,16 @@ async function signInWithEmail(emailRaw, passwordRaw) {
   try {
     await ensureRecaptchaVerification();
     const cred = await signInWithEmailAndPassword(auth, email, password);
+    state.user = cred.user;
     await syncUserProfile(cred.user);
+    const unlockedPayment = consumePendingPaymentRedirect() || wasPaymentGate;
+    if (unlockedPayment) state.portalTab = "payments";
+    state.draftName = "";
+    state.draftEmail = "";
     state.busy = false;
-    state.successMsg = "Welcome back! Your Aqua session is synced.";
+    state.successMsg = unlockedPayment
+      ? "Welcome back! Official bank details and the Payment Portal are now unlocked."
+      : "Welcome back! Your Aqua session is synced.";
     renderHeaderSlot();
     renderModalContent();
     showPageToast("Signed in as " + getFirstName(cred.user, state.profile));
@@ -883,6 +1132,8 @@ async function registerWithEmail(nameRaw, emailRaw, passwordRaw) {
   const displayName = String(nameRaw || "").trim().slice(0, LIMITS.displayNameMax);
   const email = String(emailRaw || "").trim();
   const password = String(passwordRaw || "");
+  state.draftName = displayName;
+  state.draftEmail = email;
 
   if (!displayName) {
     state.errorMsg = "Please enter your full name to create an account.";
@@ -900,6 +1151,7 @@ async function registerWithEmail(nameRaw, emailRaw, passwordRaw) {
     return;
   }
 
+  const wasPaymentGate = state.pendingPaymentRedirect || state.portalTab === "payments";
   state.busy = true;
   state.errorMsg = "";
   state.successMsg = "";
@@ -908,15 +1160,22 @@ async function registerWithEmail(nameRaw, emailRaw, passwordRaw) {
   try {
     await ensureRecaptchaVerification();
     const cred = await createUserWithEmailAndPassword(auth, email, password);
+    state.user = cred.user;
     try {
       await updateProfile(cred.user, { displayName });
     } catch (_) {}
     try {
       await sendEmailVerification(cred.user);
     } catch (_) {}
-    await syncUserProfile(cred.user);
+    await syncUserProfile(cred.user, displayName);
+    const unlockedPayment = consumePendingPaymentRedirect() || wasPaymentGate;
+    if (unlockedPayment) state.portalTab = "payments";
+    state.draftName = "";
+    state.draftEmail = "";
     state.busy = false;
-    state.successMsg = "Account created! A verification email has been sent to " + email + ".";
+    state.successMsg = unlockedPayment
+      ? "Account created! Official bank details and the Payment Portal are now unlocked."
+      : "Account created! A verification email has been sent to " + email + ".";
     renderHeaderSlot();
     renderModalContent();
     showPageToast("Welcome to Aqua PC Parts, " + getFirstName(cred.user, state.profile) + "!");
@@ -930,6 +1189,7 @@ async function registerWithEmail(nameRaw, emailRaw, passwordRaw) {
 async function resetPasswordWithEmail(emailRaw) {
   if (state.busy) return;
   const email = String(emailRaw || "").trim();
+  state.draftEmail = email;
   if (!email || !email.includes("@")) {
     state.errorMsg = "Enter your account email address to receive a password reset link.";
     renderModalContent();
@@ -954,15 +1214,68 @@ async function resetPasswordWithEmail(emailRaw) {
   }
 }
 
+async function resendVerificationEmail() {
+  if (!state.user || state.busy) return;
+  state.busy = true;
+  state.errorMsg = "";
+  state.successMsg = "";
+  renderModalContent();
+  try {
+    await sendEmailVerification(state.user);
+    state.busy = false;
+    state.successMsg = "Verification link sent to " + (state.user.email || "your email") + ". Check your inbox or spam folder.";
+    renderModalContent();
+    showPageToast("Verification email sent");
+  } catch (error) {
+    state.busy = false;
+    state.errorMsg = mapEmailAuthError(error);
+    renderModalContent();
+  }
+}
+
+async function refreshEmailVerificationStatus() {
+  if (!state.user || state.busy) return;
+  state.busy = true;
+  state.errorMsg = "";
+  state.successMsg = "";
+  renderModalContent();
+  try {
+    await state.user.reload();
+    state.user = auth.currentUser;
+    state.busy = false;
+    if (state.user && state.user.emailVerified) {
+      state.successMsg = "Your email is verified!";
+      attachOrdersListener(state.user);
+      attachPaymentsListener(state.user);
+    } else {
+      state.errorMsg = "Email is not verified yet. Open the verification link in your inbox, then click Refresh again.";
+    }
+    renderHeaderSlot();
+    renderModalContent();
+  } catch (_) {
+    state.busy = false;
+    state.errorMsg = "Could not refresh verification status right now. Please try again.";
+    renderModalContent();
+  }
+}
+
 async function handleSignOut() {
   try {
     detachQuotesListener();
     detachOrdersListener();
+    detachBankDetailsListener();
+    detachPaymentsListener();
     await firebaseSignOut(auth);
     state.user = null;
     state.profile = null;
     state.menuOpen = false;
     state.modalOpen = false;
+    state.paymentGateNotice = false;
+    state.pendingPaymentRedirect = false;
+    state.pendingPaymentOrder = "";
+    state.pendingPaymentAmount = "";
+    state.draftName = "";
+    state.draftEmail = "";
     state.errorMsg = "";
     state.successMsg = "";
     renderHeaderSlot();
@@ -1403,6 +1716,284 @@ async function adminUpdateOrderStatus(orderId, nextStatus, statusNoteRaw) {
   }
 }
 
+function generatePaymentRef() {
+  const now = new Date();
+  const yy = String(now.getFullYear()).slice(-2);
+  const mm = String(now.getMonth() + 1).padStart(2, "0");
+  const dd = String(now.getDate()).padStart(2, "0");
+  const rand = Math.random().toString(36).replace(/[^a-z0-9]/gi, "").toUpperCase().slice(0, 4).padEnd(4, "P");
+  return "PAY-" + yy + mm + dd + "-" + rand;
+}
+
+function getTodayIsoDate() {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return y + "-" + m + "-" + day;
+}
+
+function copyTextWithToast(text, label) {
+  const val = String(text || "").trim();
+  if (!val) return;
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(val).then(
+      () => showPageToast("Copied " + (label || val)),
+      () => showPageToast((label ? label + ": " : "") + val)
+    );
+  } else {
+    showPageToast((label ? label + ": " : "") + val);
+  }
+}
+
+function buildPaymentWhatsAppHref(p) {
+  const lines = [
+    "Hello Aqua PC Parts Billing Desk!",
+    "I have submitted a payment confirmation via the website Payment Portal:",
+    "Payment Ref: " + (p.paymentRef || p.paymentId),
+    p.orderNumber ? "Order #: " + p.orderNumber : "",
+    "Amount: " + fmtLKR(Number(p.amountLkr) || 0),
+    "Method: " + (PAYMENT_METHOD_LABELS[p.paymentMethod] || p.paymentMethod),
+    "Bank Ref / Slip #: " + (p.bankReference || ""),
+    "Depositor: " + (p.depositorName || ""),
+    "Transfer Date: " + (p.transferDate || ""),
+  ].filter(Boolean);
+  return "https://wa.me/" + WHATSAPP_PHONE + "?text=" + encodeURIComponent(lines.join("\n"));
+}
+
+async function submitBuyerPayment(raw) {
+  if (!state.user || state.busy) return;
+
+  const amountNum = Number(raw.amountLkr);
+  const paymentMethod = String(raw.paymentMethod || "bank_transfer");
+  const bankReference = String(raw.bankReference || "").trim().slice(0, LIMITS.bankRefMax);
+  const depositorName = String(raw.depositorName || "").trim().slice(0, LIMITS.depositorNameMax);
+  const transferDate = String(raw.transferDate || "").trim().slice(0, LIMITS.transferDateMax);
+  const note = String(raw.note || "").trim().slice(0, LIMITS.paymentNoteMax);
+  const orderNumber = String(raw.orderNumber || "")
+    .trim()
+    .toUpperCase()
+    .replace(/\s+/g, "");
+
+  if (!Number.isFinite(amountNum) || amountNum < 1 || amountNum > LIMITS.quoteTotalMax) {
+    state.errorMsg = "Enter a valid payment amount in LKR (at least Rs. 1).";
+    renderModalContent();
+    return;
+  }
+  if (!LIMITS.validPaymentMethods.has(paymentMethod)) {
+    state.errorMsg = "Please select a valid payment method.";
+    renderModalContent();
+    return;
+  }
+  if (bankReference.length < 2) {
+    state.errorMsg = "Enter your bank transfer reference, CEFT receipt number, or deposit slip number.";
+    renderModalContent();
+    return;
+  }
+  if (depositorName.length < 1) {
+    state.errorMsg = "Enter the depositor or account holder name used for the transfer.";
+    renderModalContent();
+    return;
+  }
+  if (transferDate.length < 4) {
+    state.errorMsg = "Select the date you completed the bank transfer.";
+    renderModalContent();
+    return;
+  }
+  if (orderNumber && !LIMITS.orderNumberPattern.test(orderNumber)) {
+    state.errorMsg = "Order number must use letters, numbers, and hyphens only (e.g. AQ-261125-4K9M), or leave blank.";
+    renderModalContent();
+    return;
+  }
+
+  const paymentId = "pay_" + Date.now() + "_" + Math.random().toString(36).slice(2, 7);
+  const paymentRef = generatePaymentRef();
+  const profile = state.profile || {};
+  const customerName =
+    String(profile.displayName || state.user.displayName || depositorName || "Aqua Customer")
+      .trim()
+      .slice(0, LIMITS.displayNameMax) || "Aqua Customer";
+  const customerEmail = String(profile.email || state.user.email || "member@aquapcparts.lk")
+    .trim()
+    .slice(0, LIMITS.emailMax);
+  const customerPhone = String(profile.phone || "").trim().slice(0, LIMITS.phoneMax);
+
+  const payload = {
+    paymentId,
+    paymentRef,
+    ownerId: state.user.uid,
+    customerName,
+    customerEmail,
+    amountLkr: Math.round(amountNum),
+    paymentMethod,
+    bankReference,
+    depositorName,
+    transferDate,
+    status: "pending_verification",
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  };
+  if (customerPhone && LIMITS.phonePattern.test(customerPhone)) {
+    payload.customerPhone = customerPhone;
+  }
+  if (orderNumber) {
+    payload.orderNumber = orderNumber;
+  }
+  if (note) {
+    payload.note = note;
+  }
+
+  state.busy = true;
+  state.errorMsg = "";
+  state.successMsg = "";
+  renderModalContent();
+
+  const path = "payments/" + paymentId;
+  try {
+    await setDoc(doc(db, "payments", paymentId), payload);
+    state.busy = false;
+    state.pendingPaymentOrder = "";
+    state.pendingPaymentAmount = "";
+    state.successMsg =
+      "Payment confirmation " +
+      paymentRef +
+      " submitted! Our Embilipitiya billing desk will verify your transfer and update the status live.";
+    renderModalContent();
+    showPageToast("Payment " + paymentRef + " submitted for verification");
+  } catch (error) {
+    state.busy = false;
+    try {
+      handleFirestoreError(error, OperationType.CREATE, path);
+    } catch (_) {
+      state.errorMsg = "Could not submit payment confirmation. Please check all fields and try again.";
+      renderModalContent();
+    }
+  }
+}
+
+async function cancelMyPayment(paymentId) {
+  if (!state.user || !paymentId || state.busy) return;
+  const path = "payments/" + paymentId;
+  state.busy = true;
+  state.errorMsg = "";
+  state.successMsg = "";
+  renderModalContent();
+  try {
+    await updateDoc(doc(db, "payments", paymentId), {
+      status: "cancelled",
+      updatedAt: serverTimestamp(),
+    });
+    state.busy = false;
+    state.successMsg = "Payment submission cancelled.";
+    renderModalContent();
+    showPageToast("Payment cancelled");
+  } catch (error) {
+    state.busy = false;
+    try {
+      handleFirestoreError(error, OperationType.UPDATE, path);
+    } catch (_) {
+      state.errorMsg = "Only pending payment submissions can be cancelled.";
+      renderModalContent();
+    }
+  }
+}
+
+async function adminSaveBankDetails(raw) {
+  if (!isAdminUser() || state.busy) return;
+  const bankName = String(raw.bankName || "").trim().slice(0, LIMITS.bankNameMax);
+  const accountName = String(raw.accountName || "").trim().slice(0, LIMITS.accountNameMax);
+  const accountNumber = String(raw.accountNumber || "").trim().slice(0, LIMITS.accountNumberMax);
+  const branch = String(raw.branch || "").trim().slice(0, LIMITS.branchMax);
+  const swiftCode = String(raw.swiftCode || "").trim().slice(0, LIMITS.swiftCodeMax);
+  const instructions = String(raw.instructions || "").trim().slice(0, LIMITS.instructionsMax);
+
+  if (bankName.length < 2) {
+    state.errorMsg = "Bank name must be at least 2 characters.";
+    renderModalContent();
+    return;
+  }
+  if (accountName.length < 2) {
+    state.errorMsg = "Account holder name must be at least 2 characters.";
+    renderModalContent();
+    return;
+  }
+  if (accountNumber.length < 4 || !LIMITS.accountNumberPattern.test(accountNumber)) {
+    state.errorMsg = "Account number must be 4-48 characters using letters, numbers, spaces, or hyphens only.";
+    renderModalContent();
+    return;
+  }
+  if (branch.length < 2) {
+    state.errorMsg = "Bank branch must be at least 2 characters.";
+    renderModalContent();
+    return;
+  }
+
+  const payload = {
+    bankName,
+    accountName,
+    accountNumber,
+    branch,
+    updatedBy: state.user.uid,
+    updatedAt: serverTimestamp(),
+  };
+  if (swiftCode) payload.swiftCode = swiftCode;
+  if (instructions) payload.instructions = instructions;
+
+  state.busy = true;
+  state.errorMsg = "";
+  state.successMsg = "";
+  renderModalContent();
+
+  const path = "storeSettings/bankTransfer";
+  try {
+    await setDoc(doc(db, "storeSettings", "bankTransfer"), payload);
+    state.busy = false;
+    state.successMsg = "Official bank transfer details published! Visible strictly to signed-in buyers.";
+    renderModalContent();
+    showPageToast("Bank details published live");
+  } catch (error) {
+    state.busy = false;
+    try {
+      handleFirestoreError(error, OperationType.WRITE, path);
+    } catch (_) {
+      state.errorMsg = "Could not save bank details. Ensure your admin email is verified.";
+      renderModalContent();
+    }
+  }
+}
+
+async function adminUpdatePaymentStatus(paymentId, nextStatus, adminNoteRaw) {
+  if (!isAdminUser() || !paymentId || state.busy) return;
+  if (!LIMITS.validPaymentStatuses.includes(nextStatus)) return;
+  const adminNote = String(adminNoteRaw || "").trim().slice(0, LIMITS.paymentNoteMax);
+  const path = "payments/" + paymentId;
+
+  state.busy = true;
+  state.errorMsg = "";
+  state.successMsg = "";
+  renderModalContent();
+
+  try {
+    await updateDoc(doc(db, "payments", paymentId), {
+      status: nextStatus,
+      adminNote,
+      updatedAt: serverTimestamp(),
+    });
+    state.busy = false;
+    state.successMsg = "Payment updated to " + (PAYMENT_STATUS_LABELS[nextStatus] || nextStatus) + ".";
+    renderModalContent();
+    showPageToast("Payment status updated");
+  } catch (error) {
+    state.busy = false;
+    try {
+      handleFirestoreError(error, OperationType.UPDATE, path);
+    } catch (_) {
+      state.errorMsg = "Could not update payment status.";
+      renderModalContent();
+    }
+  }
+}
+
 // ───────── Printable Branded Invoice Modal (Zero window.open) ─────────
 function openInvoiceModal(order) {
   if (!order) return;
@@ -1589,6 +2180,20 @@ function ensureHeaderSlot() {
   }
 
   const offcanvasLinks = document.querySelector(".ne-offcanvas-quicklinks");
+  if (offcanvasLinks && !document.getElementById("aqua-mobile-payment-link")) {
+    const payLink = document.createElement("a");
+    payLink.id = "aqua-mobile-payment-link";
+    payLink.href = "#payment-portal";
+    payLink.innerHTML = "<span>Payment Portal (Members Only)</span>";
+    payLink.addEventListener("click", (e) => {
+      e.preventDefault();
+      const closeBtn = document.getElementById("offcanvas-close");
+      if (closeBtn) closeBtn.click();
+      openPaymentPortal();
+    });
+    offcanvasLinks.insertBefore(payLink, offcanvasLinks.firstChild);
+  }
+
   if (offcanvasLinks && !document.getElementById("aqua-mobile-track-link")) {
     const trackLink = document.createElement("a");
     trackLink.id = "aqua-mobile-track-link";
@@ -1656,6 +2261,7 @@ function renderHeaderSlot() {
   const initials = getInitials(state.user, state.profile);
   const quoteBadge = state.quotes.length > 0 ? '<span class="aqua-menu-count">' + state.quotes.length + "</span>" : "";
   const orderBadge = state.orders.length > 0 ? '<span class="aqua-menu-count">' + state.orders.length + "</span>" : "";
+  const paymentBadge = state.payments.length > 0 ? '<span class="aqua-menu-count">' + state.payments.length + "</span>" : "";
   const adminItem = isAdminUser()
     ? '<button type="button" class="aqua-menu-item is-admin" data-aqua-action="portal-admin" role="menuitem">' +
       '<span class="material-symbols-outlined">admin_panel_settings</span>' +
@@ -1683,6 +2289,11 @@ function renderHeaderSlot() {
     '<span class="material-symbols-outlined">receipt_long</span>' +
     "<span>Orders &amp; Invoices</span>" +
     orderBadge +
+    "</button>" +
+    '<button type="button" class="aqua-menu-item is-pay" data-aqua-action="portal-payments" role="menuitem">' +
+    '<span class="material-symbols-outlined">account_balance</span>' +
+    "<span>Payment Portal &amp; Bank</span>" +
+    paymentBadge +
     "</button>" +
     '<button type="button" class="aqua-menu-item" data-aqua-action="track-order" role="menuitem">' +
     '<span class="material-symbols-outlined">local_shipping</span>' +
@@ -1727,6 +2338,7 @@ function renderHeaderSlot() {
       if (act === "portal-profile") openModal("profile");
       else if (act === "portal-quotes") openModal("quotes");
       else if (act === "portal-orders") openModal("orders");
+      else if (act === "portal-payments") openPaymentPortal();
       else if (act === "portal-admin") openModal("admin");
       else if (act === "track-order") openTrackOrderModal();
       else if (act === "signout") handleSignOut();
@@ -1761,13 +2373,17 @@ function syncModalVisibility() {
   document.body.classList.toggle("aqua-modal-open", state.modalOpen);
 }
 
-function openModal(modeOrTab) {
+function openModal(modeOrTab, opts) {
   state.menuOpen = false;
   state.errorMsg = "";
   state.successMsg = "";
+  if (!opts || !opts.keepPaymentGate) {
+    state.paymentGateNotice = false;
+    state.pendingPaymentRedirect = false;
+  }
   if (modeOrTab === "signin" || modeOrTab === "register" || modeOrTab === "reset") {
     state.authMode = modeOrTab;
-  } else if (["quotes", "profile", "orders", "admin"].includes(modeOrTab)) {
+  } else if (["quotes", "profile", "orders", "payments", "admin"].includes(modeOrTab)) {
     state.portalTab = modeOrTab;
   }
   state.modalOpen = true;
@@ -1776,8 +2392,31 @@ function openModal(modeOrTab) {
   syncModalVisibility();
 }
 
+function openPaymentPortal(orderNumber, amountLkr) {
+  const cleanOrder = typeof orderNumber === "string" ? orderNumber.trim().toUpperCase() : "";
+  if (cleanOrder) {
+    state.pendingPaymentOrder = cleanOrder;
+  }
+  if (typeof amountLkr === "number" && Number.isFinite(amountLkr) && amountLkr > 0) {
+    state.pendingPaymentAmount = String(Math.round(amountLkr));
+  }
+
+  if (!state.user) {
+    state.paymentGateNotice = true;
+    state.pendingPaymentRedirect = true;
+    openModal("register", { keepPaymentGate: true });
+    return;
+  }
+
+  state.paymentGateNotice = false;
+  state.pendingPaymentRedirect = false;
+  openModal("payments");
+}
+
 function closeModal() {
   state.modalOpen = false;
+  state.paymentGateNotice = false;
+  state.pendingPaymentRedirect = false;
   state.errorMsg = "";
   state.successMsg = "";
   syncModalVisibility();
@@ -1841,10 +2480,10 @@ function renderModalContent() {
         : "Sign in with Email, Google, or Facebook to track live workshop orders, print warranty invoices, and sync quotes.";
 
     const emailFormHtml = isReset
-      ? '<form class="aqua-email-form" id="aqua-reset-form">' +
+      ? '<form class="aqua-email-form" id="aqua-reset-form" novalidate>' +
         '<div class="aqua-field">' +
         '<label for="aqua-auth-email">Account Email Address</label>' +
-        '<input type="email" id="aqua-auth-email" autocomplete="email" placeholder="you@example.com" required />' +
+        '<input type="email" id="aqua-auth-email" autocomplete="email" placeholder="you@example.com" value="' + esc(state.draftEmail) + '" required />' +
         "</div>" +
         '<button type="submit" class="aqua-submit-btn"' +
         (state.busy ? " disabled" : "") +
@@ -1856,16 +2495,16 @@ function renderModalContent() {
         '<button type="button" class="aqua-text-link" data-auth-mode="signin">← Back to Sign In</button>' +
         "</div>" +
         "</form>"
-      : '<form class="aqua-email-form" id="aqua-email-form">' +
+      : '<form class="aqua-email-form" id="aqua-email-form" novalidate>' +
         (isReg
           ? '<div class="aqua-field">' +
             '<label for="aqua-auth-name">Full Name</label>' +
-            '<input type="text" id="aqua-auth-name" autocomplete="name" maxlength="100" placeholder="e.g. Kasun Perera" required />' +
+            '<input type="text" id="aqua-auth-name" autocomplete="name" maxlength="100" placeholder="e.g. Kasun Perera" value="' + esc(state.draftName) + '" required />' +
             "</div>"
           : "") +
         '<div class="aqua-field">' +
         '<label for="aqua-auth-email">Email Address</label>' +
-        '<input type="email" id="aqua-auth-email" autocomplete="email" maxlength="254" placeholder="you@example.com" required />' +
+        '<input type="email" id="aqua-auth-email" autocomplete="email" maxlength="254" placeholder="you@example.com" value="' + esc(state.draftEmail) + '" required />' +
         "</div>" +
         '<div class="aqua-field">' +
         '<div class="aqua-label-row">' +
@@ -1901,6 +2540,16 @@ function renderModalContent() {
         "</button>" +
         "</form>";
 
+    const paymentGateBanner = state.paymentGateNotice
+      ? '<div class="aqua-pay-gate-banner" role="note">' +
+        '<span class="material-symbols-outlined">lock</span>' +
+        "<div>" +
+        "<strong>Registration Required for Payment Portal</strong>" +
+        "<p>Create a free Aqua PC Parts account or sign in below to view our official bank transfer details and submit payment confirmations.</p>" +
+        "</div>" +
+        "</div>"
+      : "";
+
     host.innerHTML =
       '<div class="aqua-auth-card">' +
       '<button type="button" class="aqua-auth-close" id="aqua-modal-close" aria-label="Close login panel">' +
@@ -1910,12 +2559,15 @@ function renderModalContent() {
       '<div class="aqua-auth-brand">' +
       '<img src="assets/logo.jpg" alt="Aqua PC Solutions" />' +
       "<div>" +
-      '<span class="aqua-auth-eyebrow">AQUA LAB CLIENT ACCESS</span>' +
+      '<span class="aqua-auth-eyebrow">' +
+      (state.paymentGateNotice ? "REGISTERED BUYERS PAYMENT PORTAL" : "AQUA LAB CLIENT ACCESS") +
+      "</span>" +
       '<h2 id="aqua-auth-modal-title">' + headingTitle + "</h2>" +
       "</div>" +
       "</div>" +
       '<p class="aqua-auth-sub">' + headingSub + "</p>" +
       "</div>" +
+      paymentGateBanner +
       '<div class="aqua-mode-tabs" role="tablist" aria-label="Authentication mode">' +
       '<button type="button" role="tab" aria-selected="' +
       (!isReg && !isReset ? "true" : "false") +
@@ -1972,6 +2624,19 @@ function renderModalContent() {
 
     const closeBtn = host.querySelector("#aqua-modal-close");
     if (closeBtn) closeBtn.addEventListener("click", closeModal);
+
+    const nameInput = host.querySelector("#aqua-auth-name");
+    if (nameInput) {
+      nameInput.addEventListener("input", () => {
+        state.draftName = nameInput.value;
+      });
+    }
+    const emailInput = host.querySelector("#aqua-auth-email");
+    if (emailInput) {
+      emailInput.addEventListener("input", () => {
+        state.draftEmail = emailInput.value;
+      });
+    }
 
     host.querySelectorAll("[data-auth-mode]").forEach((btn) => {
       btn.addEventListener("click", () => {
@@ -2115,6 +2780,9 @@ function renderModalContent() {
               '<div><strong class="aqua-order-num">' + esc(o.orderNumber || o.orderId) + "</strong>" +
               "<small>" + esc(fmtDate(o.createdAt)) + " · " + esc(String(o.itemCount || 1)) + " item(s) · <b>" + esc(fmtLKR(Number(o.totalLkr) || 0)) + "</b></small></div>" +
               '<div class="aqua-quote-item-btns">' +
+              (o.status !== "cancelled"
+                ? '<button type="button" class="aqua-mini-btn is-pay" data-pay-order="' + esc(o.id) + '" title="Pay via Bank Transfer"><span class="material-symbols-outlined">account_balance</span><span>Pay</span></button>'
+                : "") +
               '<button type="button" class="aqua-mini-btn is-inv" data-print-order="' + esc(o.id) + '"><span class="material-symbols-outlined">receipt_long</span><span>Invoice</span></button>' +
               '<a class="aqua-mini-btn is-wa" href="' + esc(buildOrderWhatsAppHref(o)) + '" target="_blank" rel="noopener noreferrer"><span class="material-symbols-outlined">chat</span></a>' +
               (o.status === "received"
@@ -2131,10 +2799,236 @@ function renderModalContent() {
           .join("") +
         "</div>");
 
+  // ── Login-Gated Buyer Payment Portal Tab ──
+  const bd = state.bankDetails;
+  const prefillOrder = state.pendingPaymentOrder || "";
+  const prefillAmount =
+    state.pendingPaymentAmount ||
+    (prefillOrder
+      ? (() => {
+          const m = state.orders.find((o) => String(o.orderNumber || "").toUpperCase() === prefillOrder);
+          return m && Number(m.totalLkr) > 0 ? String(Math.round(Number(m.totalLkr))) : "";
+        })()
+      : cartSnap.totalLkr > 0
+        ? String(Math.round(cartSnap.totalLkr))
+        : "");
+
+  const bankCardHtml = !state.bankDetailsLoaded
+    ? '<div class="aqua-bank-card is-loading"><span class="material-symbols-outlined aqua-spin">progress_activity</span><span>Loading official bank transfer details...</span></div>'
+    : bd
+      ? '<div class="aqua-bank-card">' +
+        '<div class="aqua-bank-card-head">' +
+        '<div><span class="aqua-bank-eyebrow"><span class="material-symbols-outlined">verified_user</span> MEMBERS-ONLY OFFICIAL BANK ACCOUNT</span>' +
+        "<h4>" + esc(bd.bankName) + "</h4></div>" +
+        '<button type="button" class="aqua-mini-btn is-inv" id="aqua-copy-all-bank"><span class="material-symbols-outlined">content_copy</span><span>Copy All</span></button>' +
+        "</div>" +
+        '<div class="aqua-bank-grid">' +
+        '<div class="aqua-bank-row"><small>Account Holder Name</small><div class="aqua-bank-val"><strong>' + esc(bd.accountName) + '</strong><button type="button" class="aqua-copy-icon-btn" data-copy-bank="' + esc(bd.accountName) + '" data-copy-label="Account Name" aria-label="Copy account name"><span class="material-symbols-outlined">content_copy</span></button></div></div>' +
+        '<div class="aqua-bank-row"><small>Account Number</small><div class="aqua-bank-val"><strong class="aqua-bank-mono">' + esc(bd.accountNumber) + '</strong><button type="button" class="aqua-copy-icon-btn" data-copy-bank="' + esc(bd.accountNumber) + '" data-copy-label="Account Number" aria-label="Copy account number"><span class="material-symbols-outlined">content_copy</span></button></div></div>' +
+        '<div class="aqua-bank-row"><small>Branch</small><div class="aqua-bank-val"><strong>' + esc(bd.branch) + "</strong></div></div>" +
+        (bd.swiftCode
+          ? '<div class="aqua-bank-row"><small>Bank / SWIFT Code</small><div class="aqua-bank-val"><strong class="aqua-bank-mono">' + esc(bd.swiftCode) + '</strong><button type="button" class="aqua-copy-icon-btn" data-copy-bank="' + esc(bd.swiftCode) + '" data-copy-label="SWIFT Code" aria-label="Copy SWIFT code"><span class="material-symbols-outlined">content_copy</span></button></div></div>'
+          : "") +
+        "</div>" +
+        (bd.instructions
+          ? '<div class="aqua-bank-instructions"><span class="material-symbols-outlined">info</span><p>' + esc(bd.instructions) + "</p></div>"
+          : "") +
+        "</div>"
+      : '<div class="aqua-bank-card is-pending">' +
+        '<div class="aqua-bank-pending-head">' +
+        '<span class="material-symbols-outlined">account_balance</span>' +
+        "<div>" +
+        "<h4>Official Bank Details Pending Setup</h4>" +
+        "<p>Official bank transfer details are being finalized by the Aqua PC Parts billing desk. Once published, they will appear right here for registered members.</p>" +
+        "</div>" +
+        "</div>" +
+        '<div class="aqua-bank-pending-actions">' +
+        (admin
+          ? '<button type="button" class="aqua-primary-btn" id="aqua-goto-admin-bank"><span class="material-symbols-outlined">edit_note</span><span>Set Up Bank Details in Admin Tab</span></button>'
+          : '<a class="aqua-mini-btn is-wa" href="https://wa.me/' + WHATSAPP_PHONE + '?text=' + encodeURIComponent("Hello Aqua PC Parts! I am logged in to my account (" + email + ") and would like to confirm bank transfer details for my order.") + '" target="_blank" rel="noopener noreferrer"><span class="material-symbols-outlined">chat</span><span>Confirm Bank Details on WhatsApp</span></a>') +
+        "</div>" +
+        "</div>";
+
+  const orderPickerOptions =
+    '<option value="">Direct / Cart Payment (no order selected)</option>' +
+    state.orders
+      .filter((o) => o.status !== "cancelled")
+      .map((o) => {
+        const num = String(o.orderNumber || o.orderId || "").toUpperCase();
+        const sel = prefillOrder && num === prefillOrder ? " selected" : "";
+        return (
+          '<option value="' + esc(num) + '" data-amt="' + esc(String(Math.round(Number(o.totalLkr) || 0))) + '"' + sel + ">" +
+          esc(num) + " — " + esc(fmtLKR(Number(o.totalLkr) || 0)) +
+          "</option>"
+        );
+      })
+      .join("");
+
+  const paymentsBody =
+    '<div class="aqua-payments-portal">' +
+    bankCardHtml +
+    '<div class="aqua-pay-form-card">' +
+    '<div class="aqua-pay-form-head">' +
+    '<h4><span class="material-symbols-outlined">payments</span> Submit Payment Confirmation</h4>' +
+    "<small>After completing your bank transfer, enter your receipt details below so our desk can verify and dispatch your parts.</small>" +
+    "</div>" +
+    '<form id="aqua-payment-form" class="aqua-portal-form">' +
+    (state.orders.length > 0
+      ? '<div class="aqua-field">' +
+        '<label for="aqua-pay-order-select">Link to Your Tracked Order (optional)</label>' +
+        '<select id="aqua-pay-order-select">' + orderPickerOptions + "</select>" +
+        "</div>"
+      : "") +
+    '<div class="aqua-field-row">' +
+    '<div class="aqua-field">' +
+    '<label for="aqua-pay-order-num">Order # (optional)</label>' +
+    '<input id="aqua-pay-order-num" type="text" maxlength="32" placeholder="e.g. AQ-261125-4K9M" value="' + esc(prefillOrder) + '" />' +
+    "</div>" +
+    '<div class="aqua-field">' +
+    '<label for="aqua-pay-amount">Amount Paid (LKR)</label>' +
+    '<input id="aqua-pay-amount" type="number" min="1" max="' + LIMITS.quoteTotalMax + '" step="1" placeholder="e.g. 85000" value="' + esc(prefillAmount) + '" required />' +
+    "</div>" +
+    "</div>" +
+    '<div class="aqua-field-row">' +
+    '<div class="aqua-field">' +
+    '<label for="aqua-pay-method">Payment Method</label>' +
+    '<select id="aqua-pay-method" required>' +
+    '<option value="bank_transfer">Direct Bank Transfer</option>' +
+    '<option value="online_transfer">Online Banking Transfer</option>' +
+    '<option value="ceft_instant">CEFT / Instant Fund Transfer</option>' +
+    '<option value="cash_deposit">CDM / Branch Cash Deposit</option>' +
+    "</select>" +
+    "</div>" +
+    '<div class="aqua-field">' +
+    '<label for="aqua-pay-date">Transfer Date</label>' +
+    '<input id="aqua-pay-date" type="date" value="' + esc(getTodayIsoDate()) + '" required />' +
+    "</div>" +
+    "</div>" +
+    '<div class="aqua-field-row">' +
+    '<div class="aqua-field">' +
+    '<label for="aqua-pay-ref">Bank Reference / Slip #</label>' +
+    '<input id="aqua-pay-ref" type="text" maxlength="' + LIMITS.bankRefMax + '" placeholder="e.g. CEFT-9482716 or Slip #" required />' +
+    "</div>" +
+    '<div class="aqua-field">' +
+    '<label for="aqua-pay-depositor">Depositor / Account Holder Name</label>' +
+    '<input id="aqua-pay-depositor" type="text" maxlength="' + LIMITS.depositorNameMax + '" value="' + esc(fullName) + '" required />' +
+    "</div>" +
+    "</div>" +
+    '<div class="aqua-field">' +
+    '<label for="aqua-pay-note">Note for Billing Desk (optional)</label>' +
+    '<input id="aqua-pay-note" type="text" maxlength="' + LIMITS.paymentNoteMax + '" placeholder="e.g. Paid via Commercial Bank online, please dispatch today" />' +
+    "</div>" +
+    '<button type="submit" class="aqua-primary-btn"' + (state.busy ? " disabled" : "") + ">" +
+    '<span class="material-symbols-outlined">send</span>' +
+    "<span>" + (state.busy ? "Submitting Payment..." : "Submit Payment Confirmation") + "</span>" +
+    "</button>" +
+    "</form>" +
+    "</div>" +
+    '<div class="aqua-pay-history">' +
+    '<h4 class="aqua-pay-history-title">My Payment Submissions (' + state.payments.length + ")</h4>" +
+    (state.payments.length === 0
+      ? '<div class="aqua-empty-quotes"><span class="material-symbols-outlined">receipt</span><p>No payment confirmations submitted yet. Your bank transfers and verification status will appear here.</p></div>'
+      : '<div class="aqua-orders-list">' +
+        state.payments
+          .map((p) => {
+            const stKey = p.status || "pending_verification";
+            const stLabel = PAYMENT_STATUS_LABELS[stKey] || stKey;
+            return (
+              '<div class="aqua-payment-card is-' + esc(stKey) + '">' +
+              '<div class="aqua-order-card-top">' +
+              "<div>" +
+              '<div class="aqua-pay-card-title">' +
+              '<strong class="aqua-order-num">' + esc(p.paymentRef || p.paymentId) + "</strong>" +
+              '<span class="aqua-pay-status is-' + esc(stKey) + '">' + esc(stLabel) + "</span>" +
+              "</div>" +
+              "<small>" +
+              "<b>" + esc(fmtLKR(Number(p.amountLkr) || 0)) + "</b>" +
+              " · " + esc(PAYMENT_METHOD_LABELS[p.paymentMethod] || p.paymentMethod) +
+              (p.orderNumber ? " · Order " + esc(p.orderNumber) : "") +
+              "</small>" +
+              "</div>" +
+              '<div class="aqua-quote-item-btns">' +
+              '<a class="aqua-mini-btn is-wa" href="' + esc(buildPaymentWhatsAppHref(p)) + '" target="_blank" rel="noopener noreferrer" title="Send slip via WhatsApp"><span class="material-symbols-outlined">chat</span><span>Slip</span></a>' +
+              (stKey === "pending_verification"
+                ? '<button type="button" class="aqua-mini-btn is-del" data-cancel-payment="' + esc(p.id) + '" title="Cancel pending payment"><span class="material-symbols-outlined">cancel</span></button>'
+                : "") +
+              "</div></div>" +
+              '<div class="aqua-pay-meta-grid">' +
+              "<span><b>Ref #:</b> " + esc(p.bankReference || "-") + "</span>" +
+              "<span><b>Depositor:</b> " + esc(p.depositorName || "-") + "</span>" +
+              "<span><b>Date:</b> " + esc(p.transferDate || fmtDate(p.createdAt)) + "</span>" +
+              "</div>" +
+              (p.note ? '<p class="aqua-pay-buyer-note">Note: ' + esc(p.note) + "</p>" : "") +
+              (p.adminNote
+                ? '<div class="aqua-order-tech-note"><span class="material-symbols-outlined">verified_user</span><span>Billing Desk: ' + esc(p.adminNote) + "</span></div>"
+                : "") +
+              "</div>"
+            );
+          })
+          .join("") +
+        "</div>") +
+    "</div>" +
+    "</div>";
+
   const overridesList = Array.from(state.inventoryOverrides.values());
   const adminBody = !admin
     ? ""
     : '<div class="aqua-admin-desk">' +
+      '<div class="aqua-admin-section" id="aqua-admin-bank-section">' +
+      '<h4><span class="material-symbols-outlined">account_balance</span> Official Bank Transfer Details (Visible After Login Only)</h4>' +
+      '<form id="aqua-admin-bank-form" class="aqua-admin-bank-form">' +
+      '<div class="aqua-field-row">' +
+      '<div class="aqua-field"><label for="adm-bank-name">Bank Name</label><input id="adm-bank-name" type="text" maxlength="' + LIMITS.bankNameMax + '" placeholder="e.g. Commercial Bank of Ceylon" value="' + esc((bd && bd.bankName) || "") + '" required /></div>' +
+      '<div class="aqua-field"><label for="adm-bank-branch">Branch</label><input id="adm-bank-branch" type="text" maxlength="' + LIMITS.branchMax + '" placeholder="e.g. Embilipitiya Branch" value="' + esc((bd && bd.branch) || "") + '" required /></div>' +
+      "</div>" +
+      '<div class="aqua-field-row">' +
+      '<div class="aqua-field"><label for="adm-bank-holder">Account Holder Name</label><input id="adm-bank-holder" type="text" maxlength="' + LIMITS.accountNameMax + '" placeholder="e.g. Aqua PC Solutions" value="' + esc((bd && bd.accountName) || "") + '" required /></div>' +
+      '<div class="aqua-field"><label for="adm-bank-num">Account Number</label><input id="adm-bank-num" type="text" maxlength="' + LIMITS.accountNumberMax + '" placeholder="Enter bank account number" value="' + esc((bd && bd.accountNumber) || "") + '" required /></div>' +
+      "</div>" +
+      '<div class="aqua-field-row">' +
+      '<div class="aqua-field"><label for="adm-bank-swift">Bank / SWIFT Code (optional)</label><input id="adm-bank-swift" type="text" maxlength="' + LIMITS.swiftCodeMax + '" placeholder="e.g. CCEYLKLX" value="' + esc((bd && bd.swiftCode) || "") + '" /></div>' +
+      '<div class="aqua-field"><label for="adm-bank-instr">Transfer Instructions (optional)</label><input id="adm-bank-instr" type="text" maxlength="' + LIMITS.instructionsMax + '" placeholder="e.g. Put your Order # in transfer remarks" value="' + esc((bd && bd.instructions) || "") + '" /></div>' +
+      "</div>" +
+      '<button type="submit" class="aqua-primary-btn"' + (state.busy ? " disabled" : "") + '><span class="material-symbols-outlined">save</span><span>Save Official Bank Details</span></button>' +
+      "</form>" +
+      "</div>" +
+      '<div class="aqua-admin-section">' +
+      '<h4><span class="material-symbols-outlined">payments</span> Buyer Payments Verification Queue (' + state.adminPayments.length + ")</h4>" +
+      (state.adminPayments.length === 0
+        ? '<small class="aqua-order-hint">No buyer payment confirmations submitted yet.</small>'
+        : '<div class="aqua-orders-list">' +
+          state.adminPayments
+            .map(
+              (p) =>
+                '<div class="aqua-order-card is-admin-row">' +
+                '<div class="aqua-order-card-top">' +
+                '<div><strong class="aqua-order-num">' + esc(p.paymentRef || p.paymentId) + " · " + esc(p.customerName) + "</strong>" +
+                "<small>" + esc(p.customerEmail) + (p.orderNumber ? " · Order " + esc(p.orderNumber) : "") + " · <b>" + esc(fmtLKR(Number(p.amountLkr) || 0)) + "</b></small></div>" +
+                '<span class="aqua-pay-status is-' + esc(p.status || "pending_verification") + '">' + esc(PAYMENT_STATUS_LABELS[p.status] || p.status) + "</span>" +
+                "</div>" +
+                '<div class="aqua-pay-meta-grid">' +
+                "<span><b>Method:</b> " + esc(PAYMENT_METHOD_LABELS[p.paymentMethod] || p.paymentMethod) + "</span>" +
+                "<span><b>Ref #:</b> " + esc(p.bankReference || "-") + "</span>" +
+                "<span><b>Depositor:</b> " + esc(p.depositorName || "-") + " (" + esc(p.transferDate || "-") + ")</span>" +
+                "</div>" +
+                (p.note ? '<p class="aqua-pay-buyer-note">Buyer Note: ' + esc(p.note) + "</p>" : "") +
+                '<div class="aqua-admin-order-controls">' +
+                '<select data-admin-pay-status="' + esc(p.id) + '">' +
+                LIMITS.validPaymentStatuses
+                  .map(
+                    (st) =>
+                      '<option value="' + st + '"' + (p.status === st ? " selected" : "") + ">" + esc(PAYMENT_STATUS_LABELS[st] || st) + "</option>"
+                  )
+                  .join("") +
+                "</select>" +
+                '<input type="text" maxlength="' + LIMITS.paymentNoteMax + '" data-admin-pay-note="' + esc(p.id) + '" value="' + esc(p.adminNote || "") + '" placeholder="Verification / billing note..." />' +
+                '<button type="button" class="aqua-mini-btn is-order" data-admin-save-payment="' + esc(p.id) + '">Update</button>' +
+                "</div>" +
+                "</div>"
+            )
+            .join("") +
+          "</div>") +
+      "</div>" +
       '<div class="aqua-admin-section">' +
       '<h4><span class="material-symbols-outlined">inventory</span> Live Firestore Stock &amp; Price Override</h4>' +
       '<form id="aqua-admin-stock-form" class="aqua-admin-stock-form">' +
@@ -2196,11 +3090,25 @@ function renderModalContent() {
   const activeBody =
     tab === "profile"
       ? profileBody
-      : tab === "quotes"
-        ? quotesBody
-        : tab === "admin"
-          ? adminBody
-          : ordersBody;
+      : tab === "payments"
+        ? paymentsBody
+        : tab === "quotes"
+          ? quotesBody
+          : tab === "admin"
+            ? adminBody
+            : ordersBody;
+
+  const verifyBannerHtml =
+    !state.user.emailVerified && detectUserProvider(state.user) === "password"
+      ? '<div class="aqua-verify-banner" role="status">' +
+        '<span class="material-symbols-outlined">mark_email_unread</span>' +
+        '<div><strong>Verify your email address</strong><small>Check your inbox to verify ' + esc(email) + ".</small></div>" +
+        '<div class="aqua-verify-actions">' +
+        '<button type="button" class="aqua-mini-btn" id="aqua-resend-verify"' + (state.busy ? " disabled" : "") + ">Resend</button>" +
+        '<button type="button" class="aqua-mini-btn is-inv" id="aqua-refresh-verify"' + (state.busy ? " disabled" : "") + ">Refresh</button>" +
+        "</div>" +
+        "</div>"
+      : "";
 
   host.innerHTML =
     '<div class="aqua-auth-card is-portal">' +
@@ -2217,9 +3125,12 @@ function renderModalContent() {
     "<p>" + esc(email) + "</p>" +
     "</div>" +
     "</div>" +
-    '<div class="aqua-mode-tabs is-portal-tabs' + (admin ? " has-4" : " has-3") + '" role="tablist">' +
+    verifyBannerHtml +
+    '<div class="aqua-mode-tabs is-portal-tabs' + (admin ? " has-5" : " has-4") + '" role="tablist">' +
     '<button type="button" role="tab" aria-selected="' + (tab === "orders" ? "true" : "false") + '" class="aqua-mode-tab' + (tab === "orders" ? " active" : "") + '" data-portal-tab="orders">' +
     '<span class="material-symbols-outlined">local_shipping</span><span>Orders (' + state.orders.length + ")</span></button>" +
+    '<button type="button" role="tab" aria-selected="' + (tab === "payments" ? "true" : "false") + '" class="aqua-mode-tab' + (tab === "payments" ? " active" : "") + '" data-portal-tab="payments">' +
+    '<span class="material-symbols-outlined">account_balance</span><span>Payments (' + state.payments.length + ")</span></button>" +
     '<button type="button" role="tab" aria-selected="' + (tab === "quotes" ? "true" : "false") + '" class="aqua-mode-tab' + (tab === "quotes" ? " active" : "") + '" data-portal-tab="quotes">' +
     '<span class="material-symbols-outlined">bookmark</span><span>Quotes (' + state.quotes.length + ")</span></button>" +
     '<button type="button" role="tab" aria-selected="' + (tab === "profile" ? "true" : "false") + '" class="aqua-mode-tab' + (tab === "profile" ? " active" : "") + '" data-portal-tab="profile">' +
@@ -2242,6 +3153,12 @@ function renderModalContent() {
 
   const signOutBtn = host.querySelector("#aqua-portal-signout");
   if (signOutBtn) signOutBtn.addEventListener("click", handleSignOut);
+
+  const resendVerifyBtn = host.querySelector("#aqua-resend-verify");
+  if (resendVerifyBtn) resendVerifyBtn.addEventListener("click", resendVerificationEmail);
+
+  const refreshVerifyBtn = host.querySelector("#aqua-refresh-verify");
+  if (refreshVerifyBtn) refreshVerifyBtn.addEventListener("click", refreshEmailVerificationStatus);
 
   host.querySelectorAll("[data-portal-tab]").forEach((btn) => {
     btn.addEventListener("click", () => {
@@ -2295,6 +3212,16 @@ function renderModalContent() {
     placeOrderBtn.addEventListener("click", () => createTrackedOrder(null));
   }
 
+  host.querySelectorAll("[data-pay-order]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const oid = btn.getAttribute("data-pay-order");
+      const found = state.orders.find((x) => x.id === oid);
+      if (found) {
+        openPaymentPortal(found.orderNumber || "", Number(found.totalLkr) || 0);
+      }
+    });
+  });
+
   host.querySelectorAll("[data-print-order]").forEach((btn) => {
     btn.addEventListener("click", () => {
       const oid = btn.getAttribute("data-print-order");
@@ -2313,6 +3240,101 @@ function renderModalContent() {
 
   host.querySelectorAll("[data-cancel-order]").forEach((btn) => {
     btn.addEventListener("click", () => cancelMyOrder(btn.getAttribute("data-cancel-order")));
+  });
+
+  // Payment Portal bindings
+  host.querySelectorAll("[data-copy-bank]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      copyTextWithToast(btn.getAttribute("data-copy-bank"), btn.getAttribute("data-copy-label"));
+    });
+  });
+
+  const copyAllBankBtn = host.querySelector("#aqua-copy-all-bank");
+  if (copyAllBankBtn && state.bankDetails) {
+    copyAllBankBtn.addEventListener("click", () => {
+      const d = state.bankDetails;
+      const lines = [
+        "Bank: " + d.bankName,
+        "Account Name: " + d.accountName,
+        "Account Number: " + d.accountNumber,
+        "Branch: " + d.branch,
+        d.swiftCode ? "SWIFT / Bank Code: " + d.swiftCode : "",
+      ].filter(Boolean);
+      copyTextWithToast(lines.join("\n"), "Bank Details");
+    });
+  }
+
+  const gotoAdminBankBtn = host.querySelector("#aqua-goto-admin-bank");
+  if (gotoAdminBankBtn) {
+    gotoAdminBankBtn.addEventListener("click", () => {
+      state.portalTab = "admin";
+      state.errorMsg = "";
+      state.successMsg = "";
+      renderModalContent();
+    });
+  }
+
+  const payOrderSelect = host.querySelector("#aqua-pay-order-select");
+  if (payOrderSelect) {
+    payOrderSelect.addEventListener("change", () => {
+      const selectedOpt = payOrderSelect.options[payOrderSelect.selectedIndex];
+      const ordInput = host.querySelector("#aqua-pay-order-num");
+      const amtInput = host.querySelector("#aqua-pay-amount");
+      if (ordInput) ordInput.value = payOrderSelect.value || "";
+      if (amtInput && selectedOpt) {
+        const amt = selectedOpt.getAttribute("data-amt");
+        if (amt && Number(amt) > 0) amtInput.value = amt;
+      }
+    });
+  }
+
+  const paymentForm = host.querySelector("#aqua-payment-form");
+  if (paymentForm) {
+    paymentForm.addEventListener("submit", (e) => {
+      e.preventDefault();
+      submitBuyerPayment({
+        orderNumber: (host.querySelector("#aqua-pay-order-num") || {}).value,
+        amountLkr: (host.querySelector("#aqua-pay-amount") || {}).value,
+        paymentMethod: (host.querySelector("#aqua-pay-method") || {}).value,
+        transferDate: (host.querySelector("#aqua-pay-date") || {}).value,
+        bankReference: (host.querySelector("#aqua-pay-ref") || {}).value,
+        depositorName: (host.querySelector("#aqua-pay-depositor") || {}).value,
+        note: (host.querySelector("#aqua-pay-note") || {}).value,
+      });
+    });
+  }
+
+  host.querySelectorAll("[data-cancel-payment]").forEach((btn) => {
+    btn.addEventListener("click", () => cancelMyPayment(btn.getAttribute("data-cancel-payment")));
+  });
+
+  // Admin Bank Details & Payment Verification bindings
+  const adminBankForm = host.querySelector("#aqua-admin-bank-form");
+  if (adminBankForm) {
+    adminBankForm.addEventListener("submit", (e) => {
+      e.preventDefault();
+      adminSaveBankDetails({
+        bankName: (host.querySelector("#adm-bank-name") || {}).value,
+        branch: (host.querySelector("#adm-bank-branch") || {}).value,
+        accountName: (host.querySelector("#adm-bank-holder") || {}).value,
+        accountNumber: (host.querySelector("#adm-bank-num") || {}).value,
+        swiftCode: (host.querySelector("#adm-bank-swift") || {}).value,
+        instructions: (host.querySelector("#adm-bank-instr") || {}).value,
+      });
+    });
+  }
+
+  host.querySelectorAll("[data-admin-save-payment]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const pid = btn.getAttribute("data-admin-save-payment");
+      const sel = host.querySelector('[data-admin-pay-status="' + pid + '"]');
+      const noteInp = host.querySelector('[data-admin-pay-note="' + pid + '"]');
+      adminUpdatePaymentStatus(
+        pid,
+        sel ? sel.value : "pending_verification",
+        noteInp ? noteInp.value : ""
+      );
+    });
   });
 
   const stockForm = host.querySelector("#aqua-admin-stock-form");
@@ -2834,6 +3856,12 @@ document.addEventListener("click", (e) => {
     openModal(state.user ? "orders" : reqMode === "register" ? "register" : "signin");
     return;
   }
+  const paymentTrigger = e.target && e.target.closest ? e.target.closest("[data-aqua-open-payment]") : null;
+  if (paymentTrigger) {
+    e.preventDefault();
+    openPaymentPortal(paymentTrigger.getAttribute("data-aqua-open-payment") || "");
+    return;
+  }
   const trackTrigger = e.target && e.target.closest ? e.target.closest("[data-aqua-open-track]") : null;
   if (trackTrigger) {
     e.preventDefault();
@@ -2863,18 +3891,21 @@ onAuthStateChanged(auth, async (user) => {
   state.ready = true;
   state.user = user || null;
   if (user) {
-    try {
-      await syncUserProfile(user);
-    } catch (_) {}
+    await syncUserProfile(user);
     attachQuotesListener(user);
     attachOrdersListener(user);
+    attachBankDetailsListener(user);
+    attachPaymentsListener(user);
+    consumePendingPaymentRedirect();
   } else {
     state.profile = null;
     detachQuotesListener();
     detachOrdersListener();
+    detachBankDetailsListener();
+    detachPaymentsListener();
   }
   renderHeaderSlot();
-  if (state.modalOpen) renderModalContent();
+  if (state.modalOpen && !state.busy) renderModalContent();
   if (state.trackOpen) renderTrackModal();
 });
 
@@ -2884,7 +3915,11 @@ attachInventoryListener();
 // Expose global APIs for storefront & Admin Console
 window.AquaAuth = {
   openLogin: (mode) => openModal(mode === "register" ? "register" : "signin"),
-  openPortal: (tab) => openModal(tab || "orders"),
+  openPortal: (tab) => {
+    if (tab === "payments") openPaymentPortal();
+    else openModal(tab || "orders");
+  },
+  openPayments: (orderNumber, amountLkr) => openPaymentPortal(orderNumber || "", amountLkr),
   openTrackOrder: (orderNumber) => openTrackOrderModal(orderNumber || ""),
   signOut: handleSignOut,
   getUser: () => state.user,

@@ -2506,6 +2506,20 @@
         }
       });
     }
+    if ($("#cart-pay-portal")) {
+      $("#cart-pay-portal").addEventListener("click", () => {
+        drawer(false);
+        const subtotal = cart.reduce((sum, item) => {
+          const p = item && typeof item.price === "number" ? item.price : 0;
+          return sum + p * (item.qty || 1);
+        }, 0);
+        if (window.AquaAuth && typeof window.AquaAuth.openPayments === "function") {
+          window.AquaAuth.openPayments("", subtotal > 0 ? subtotal : undefined);
+        } else if (window.AquaAuth) {
+          window.AquaAuth.openLogin("register");
+        }
+      });
+    }
 
     // Off-Canvas Mobile Category Drawer & Menu
     $("#nav-cat-trigger").addEventListener("click", () => setOffcanvas(true));

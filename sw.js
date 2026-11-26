@@ -1,4 +1,4 @@
-const CACHE_VERSION = "aqua-pc-parts-v5";
+const CACHE_VERSION = "aqua-pc-parts-v7";
 const SHELL_ASSETS = [
   "/",
   "/index.html",

@@ -330,6 +330,187 @@
         "createdAt",
         "updatedAt"
       ]
+    },
+    "BankTransferSettings": {
+      "title": "BankTransferSettings",
+      "description": "Official Aqua PC Parts bank transfer account details visible only to authenticated buyers and editable only by verified store admins.",
+      "type": "object",
+      "properties": {
+        "bankName": {
+          "type": "string",
+          "description": "Official bank name (e.g., Commercial Bank, Sampath Bank, BOC).",
+          "minLength": 2,
+          "maxLength": 100
+        },
+        "accountName": {
+          "type": "string",
+          "description": "Beneficiary account holder name.",
+          "minLength": 2,
+          "maxLength": 120
+        },
+        "accountNumber": {
+          "type": "string",
+          "description": "Bank account number for buyer transfers.",
+          "minLength": 4,
+          "maxLength": 48,
+          "pattern": "^[A-Za-z0-9\\-\\s]+$"
+        },
+        "branch": {
+          "type": "string",
+          "description": "Bank branch name (e.g., Embilipitiya Branch).",
+          "minLength": 2,
+          "maxLength": 100
+        },
+        "swiftCode": {
+          "type": "string",
+          "description": "Optional bank code or SWIFT/BIC identifier.",
+          "maxLength": 32
+        },
+        "instructions": {
+          "type": "string",
+          "description": "Optional transfer instructions shown to signed-in buyers.",
+          "maxLength": 400
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp of the latest bank details update."
+        },
+        "updatedBy": {
+          "type": "string",
+          "description": "Admin UID who last updated the bank transfer settings.",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        }
+      },
+      "required": [
+        "bankName",
+        "accountName",
+        "accountNumber",
+        "branch",
+        "updatedAt",
+        "updatedBy"
+      ]
+    },
+    "BuyerPayment": {
+      "title": "BuyerPayment",
+      "description": "Authenticated buyer bank transfer / deposit payment confirmation record linked to an order or cart purchase.",
+      "type": "object",
+      "properties": {
+        "paymentId": {
+          "type": "string",
+          "description": "Payment document ID matching the Firestore path.",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "paymentRef": {
+          "type": "string",
+          "description": "Human-friendly Aqua payment confirmation code (e.g., PAY-261126-7X2A).",
+          "minLength": 5,
+          "maxLength": 32,
+          "pattern": "^[A-Z0-9\\-]+$"
+        },
+        "ownerId": {
+          "type": "string",
+          "description": "UID of the authenticated buyer submitting the payment.",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "customerName": {
+          "type": "string",
+          "description": "Buyer display name.",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "customerEmail": {
+          "type": "string",
+          "format": "email",
+          "description": "Buyer email address (PII, restricted to owner and admin).",
+          "maxLength": 254
+        },
+        "customerPhone": {
+          "type": "string",
+          "description": "Optional buyer WhatsApp / phone number.",
+          "maxLength": 32,
+          "pattern": "^[0-9+\\-\\s()]*$"
+        },
+        "orderNumber": {
+          "type": "string",
+          "description": "Optional linked Aqua Order # (e.g., AQ-261126-4K9M).",
+          "minLength": 5,
+          "maxLength": 32,
+          "pattern": "^[A-Z0-9\\-]+$"
+        },
+        "amountLkr": {
+          "type": "number",
+          "description": "Transferred payment amount in LKR (1 to 100,000,000)."
+        },
+        "paymentMethod": {
+          "type": "string",
+          "description": "Bank transfer channel used by the buyer.",
+          "enum": ["bank_transfer", "online_transfer", "ceft_instant", "cash_deposit"],
+          "maxLength": 24
+        },
+        "bankReference": {
+          "type": "string",
+          "description": "Bank slip number or online transaction reference ID.",
+          "minLength": 2,
+          "maxLength": 80
+        },
+        "depositorName": {
+          "type": "string",
+          "description": "Account holder or depositor name shown on the bank transfer.",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "transferDate": {
+          "type": "string",
+          "description": "Date of bank transfer (YYYY-MM-DD).",
+          "minLength": 4,
+          "maxLength": 32
+        },
+        "note": {
+          "type": "string",
+          "description": "Optional buyer note for the billing desk.",
+          "maxLength": 240
+        },
+        "status": {
+          "type": "string",
+          "description": "Billing verification state.",
+          "enum": ["pending_verification", "verified", "rejected", "cancelled"],
+          "maxLength": 24
+        },
+        "adminNote": {
+          "type": "string",
+          "description": "Optional verification remark written by the store admin.",
+          "maxLength": 240
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp when the payment confirmation was submitted."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp of the latest payment status update."
+        }
+      },
+      "required": [
+        "paymentId",
+        "paymentRef",
+        "ownerId",
+        "customerName",
+        "customerEmail",
+        "amountLkr",
+        "paymentMethod",
+        "bankReference",
+        "depositorName",
+        "transferDate",
+        "status",
+        "createdAt",
+        "updatedAt"
+      ]
     }
   },
   "firestore": {
@@ -352,6 +533,14 @@
     "/orderTracking/{orderNumber}": {
       "schema": { "$ref": "#/entities/OrderTracking" },
       "description": "Zero-PII public live order status tracking documents keyed by orderNumber."
+    },
+    "/storeSettings/{settingId}": {
+      "schema": { "$ref": "#/entities/BankTransferSettings" },
+      "description": "Login-gated store configuration documents (bankTransfer details visible only after login)."
+    },
+    "/payments/{paymentId}": {
+      "schema": { "$ref": "#/entities/BuyerPayment" },
+      "description": "Authenticated buyer payment confirmations and billing verification records."
     }
   }
 }
