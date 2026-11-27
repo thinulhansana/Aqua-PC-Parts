@@ -10,7 +10,7 @@
     "providers": {
       "emailPassword": true,
       "googleSignIn": {
-        "oAuthBrandDisplayName": "Aqua PC Parts",
+        "oAuthBrandDisplayName": "Aqua PC Solutions",
         "supportEmail": "thinulhansana0411@gmail.com",
         "authorizedRedirectUris": [
           "https://gen-lang-client-0299022095.firebaseapp.com/__/auth/handler",
