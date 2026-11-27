@@ -26,7 +26,14 @@ function ensureFirebase() {
     fbAuth = authMod;
     fbFirestore = firestoreMod;
 
-    app = appMod.initializeApp(firebaseConfig);
+    const runtimeFirebaseConfig =
+      typeof window !== "undefined" &&
+      window.location &&
+      window.location.hostname === "aquapcparts.pages.dev"
+        ? { ...firebaseConfig, authDomain: "aquapcparts.pages.dev" }
+        : firebaseConfig;
+
+    app = appMod.initializeApp(runtimeFirebaseConfig);
     const bootSiteKey =
       String(firebaseConfig.recaptchaSiteKey || "").trim() ||
       (await resolveRecaptchaSiteKey());
