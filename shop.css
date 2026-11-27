@@ -72,6 +72,7 @@ html {
   scroll-behavior: smooth;
   scroll-padding-top: 120px;
   font-size: 15px;
+  overflow-x: clip;
 }
 
 body {
@@ -79,7 +80,7 @@ body {
   background-color: var(--ne-bg);
   color: var(--ne-text);
   line-height: 1.45;
-  overflow-x: hidden;
+  overflow-x: clip;
   -webkit-font-smoothing: antialiased;
 }
 
@@ -1265,10 +1266,10 @@ button {
 }
 
 .ne-shocker-body {
-  padding: 14px;
+  padding: 12px;
   display: flex;
   flex-direction: column;
-  gap: 9px;
+  gap: 7px;
   flex: 1;
 }
 
@@ -1290,10 +1291,10 @@ button {
 }
 
 .ne-shocker-img {
-  height: 130px;
+  height: 112px;
   border-radius: 10px;
   background: #ffffff;
-  padding: 8px;
+  padding: 6px;
   display: grid;
   place-items: center;
   cursor: pointer;
@@ -1301,7 +1302,7 @@ button {
 
 .ne-shocker-img img {
   max-width: 100%;
-  max-height: 114px;
+  max-height: 100px;
   object-fit: contain;
 }
 
@@ -1509,8 +1510,20 @@ button {
 
 .ne-cat-tiles {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(175px, 1fr));
+  grid-template-columns: repeat(8, minmax(0, 1fr));
   gap: 12px;
+}
+
+@media (max-width: 1199px) {
+  .ne-cat-tiles {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 600px) {
+  .ne-cat-tiles {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 .ne-cat-tile {
@@ -4940,31 +4953,63 @@ button {
   color: var(--ne-text-muted);
 }
 
-/* Header Search Bar & Subnav Fit Polish (1280px–1440px) */
+/* Header Search Bar & Subnav Fit Polish (1025px–1480px) */
 @media (min-width: 1025px) {
+  .ne-topbar-left {
+    flex-wrap: nowrap;
+    min-width: 0;
+  }
+  .ne-topbar-right {
+    flex-wrap: nowrap;
+    gap: 10px;
+    flex-shrink: 0;
+  }
+  .ne-topbar-btn {
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+  .ne-header-main {
+    gap: 8px;
+  }
   .ne-search-pill {
-    flex: 1 1 360px;
-    min-width: 300px;
+    flex: 1 1 140px;
+    min-width: 120px;
   }
   .ne-search-dept-wrap {
-    max-width: 145px;
+    max-width: 120px;
+  }
+  .ne-kbd-hint {
+    display: none;
   }
   .ne-deliver-pill {
     padding: 4px 8px;
   }
   .ne-deliver-pill strong {
-    max-width: 120px;
+    max-width: 110px;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
     display: block;
   }
   .ne-header-actions {
-    gap: 6px;
+    gap: 5px;
+    min-width: 0;
   }
   .ne-action-btn {
-    padding: 0 9px;
-    font-size: 11.5px;
+    height: 36px;
+    padding: 0 7px;
+    font-size: 11px;
+    white-space: nowrap;
+  }
+  .ne-cart-btn {
+    height: 36px;
+    padding: 0 9px 0 8px;
+    gap: 7px;
+    flex-shrink: 0;
+    white-space: nowrap;
+  }
+  .ne-cart-icon-wrap {
+    flex-shrink: 0;
   }
   .ne-subnav-inner {
     gap: 8px;
@@ -4981,16 +5026,93 @@ button {
   }
 }
 
+@media (max-width: 1480px) and (min-width: 1025px) {
+  .ne-topbar-left .hide-md,
+  .ne-topbar-left .hide-lg,
+  .ne-topbar-right .hide-md,
+  .ne-topbar-right .hide-lg {
+    display: none;
+  }
+  .ne-deliver-pill,
+  .ne-brand-wordmark span,
+  .aqua-pwa-btn-label,
+  .ne-theme-btn .ne-action-label {
+    display: none;
+  }
+  .ne-brand-logo {
+    width: 38px;
+    height: 38px;
+  }
+  .ne-brand-wordmark strong {
+    font-size: 15.5px;
+  }
+  .aqua-pwa-btn {
+    padding: 0 8px;
+    height: 36px;
+  }
+  .aqua-auth-btn {
+    height: 36px;
+    padding: 0 9px;
+    font-size: 11.5px;
+  }
+}
+
+@media (max-width: 1380px) and (min-width: 1025px) {
+  .ne-topbar-left .ne-topbar-sep,
+  .ne-topbar-left .ne-topbar-note {
+    display: none;
+  }
+  #header-builder-btn .ne-action-label,
+  .ne-cart-text small {
+    display: none;
+  }
+}
+
+@media (max-width: 1240px) and (min-width: 1025px) {
+  .ne-search-dept-wrap {
+    display: none;
+  }
+}
+
+.ne-catalog-main,
+.ne-footer {
+  padding-bottom: 68px;
+}
+
 .rose-fab {
-  right: 14px;
-  bottom: 14px;
-  padding: 6px 12px 6px 7px;
+  right: 16px;
+  bottom: 16px;
+  padding: 5px;
+  gap: 0;
+  border-radius: 999px;
+  transition: padding 0.2s ease, gap 0.2s ease;
 }
 
 .rose-avatar {
-  width: 28px;
-  height: 28px;
-  font-size: 13px;
+  width: 34px;
+  height: 34px;
+  font-size: 14px;
+  flex-shrink: 0;
+}
+
+.rose-fab-txt {
+  max-width: 0;
+  opacity: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  transition: max-width 0.22s ease, opacity 0.18s ease, margin 0.22s ease;
+}
+
+.rose-fab:hover,
+.rose-fab:focus-visible {
+  padding: 5px 12px 5px 6px;
+  gap: 8px;
+}
+
+.rose-fab:hover .rose-fab-txt,
+.rose-fab:focus-visible .rose-fab-txt {
+  max-width: 120px;
+  opacity: 1;
 }
 
 .rose-fab-txt small {

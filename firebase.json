@@ -1,0 +1,24 @@
+{
+  "firestore": {
+    "rules": "firestore.rules",
+    "indexes": "firestore.indexes.json",
+    "edition": "enterprise",
+    "database": "ai-studio-aquapcparts-f2f69b00-1247-4e43-92db-8db57d033a90",
+    "location": "asia-southeast1"
+  },
+  "auth": {
+    "providers": {
+      "emailPassword": true,
+      "googleSignIn": {
+        "oAuthBrandDisplayName": "Aqua PC Parts",
+        "supportEmail": "thinulhansana0411@gmail.com",
+        "authorizedRedirectUris": [
+          "https://gen-lang-client-0299022095.firebaseapp.com/__/auth/handler",
+          "https://aquapcparts.pages.dev/__/auth/handler",
+          "https://aquapcsolutions.yyth.workers.dev/__/auth/handler"
+        ]
+      }
+    }
+  }
+}
+

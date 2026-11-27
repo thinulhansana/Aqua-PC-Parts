@@ -27,6 +27,48 @@ function ensureFirebase() {
     fbFirestore = firestoreMod;
 
     app = appMod.initializeApp(firebaseConfig);
+    const bootSiteKey =
+      String(firebaseConfig.recaptchaSiteKey || "").trim() ||
+      (await resolveRecaptchaSiteKey());
+    if (bootSiteKey && !appCheckInstance) {
+      try {
+        appCheckInstance = appCheckMod.initializeAppCheck(app, {
+          provider: new appCheckMod.ReCaptchaEnterpriseProvider(bootSiteKey),
+          isTokenAutoRefreshEnabled: true,
+        });
+        state.recaptchaActive = true;
+        recaptchaInitPromise = Promise.resolve(true);
+        try {
+          const tokRes = await Promise.race([
+            appCheckMod.getToken(appCheckInstance, false).catch((tokErr) => {
+              console.warn(
+                "App Check token exchange failed:",
+                tokErr && tokErr.code ? tokErr.code : tokErr && tokErr.message ? tokErr.message : tokErr
+              );
+              return null;
+            }),
+            new Promise((resolve) => setTimeout(() => resolve("TIMEOUT"), 3500)),
+          ]);
+          if (tokRes === "TIMEOUT") {
+            console.warn("App Check token exchange timed out after 3.5s");
+          } else if (tokRes && (tokRes.error || tokRes.internalError)) {
+            const errObj = tokRes.error || tokRes.internalError;
+            console.warn(
+              "App Check token error:",
+              errObj && errObj.code ? errObj.code : "",
+              errObj && errObj.message ? errObj.message : errObj
+            );
+          }
+        } catch (_) {}
+      } catch (acErr) {
+        console.warn(
+          "reCAPTCHA Enterprise App Check initialization skipped:",
+          acErr && acErr.message ? acErr.message : acErr
+        );
+        appCheckInstance = null;
+        state.recaptchaActive = false;
+      }
+    }
     db = firestoreMod.getFirestore(app, firebaseConfig.firestoreDatabaseId);
     auth = authMod.getAuth(app);
 
@@ -44,7 +86,7 @@ function ensureFirebase() {
         try {
           savedRedirect = JSON.parse(sessionStorage.getItem(REDIRECT_STATE_KEY) || "null");
           sessionStorage.removeItem(REDIRECT_STATE_KEY);
-        } catch (_) {}
+        } catch (_) { }
 
         state.user = redirectResult.user;
         await syncUserProfile(redirectResult.user);
@@ -65,14 +107,14 @@ function ensureFirebase() {
       } else {
         try {
           sessionStorage.removeItem(REDIRECT_STATE_KEY);
-        } catch (_) {}
+        } catch (_) { }
       }
     } catch (redirectErr) {
       let savedRedirect = null;
       try {
         savedRedirect = JSON.parse(sessionStorage.getItem(REDIRECT_STATE_KEY) || "null");
         sessionStorage.removeItem(REDIRECT_STATE_KEY);
-      } catch (_) {}
+      } catch (_) { }
       const label = savedRedirect && savedRedirect.provider === "facebook" ? "Facebook" : "Google";
       state.errorMsg = mapProviderAuthError(redirectErr, label);
       state.modalOpen = true;
@@ -164,12 +206,17 @@ async function resolveRecaptchaSiteKey() {
 }
 
 function initRecaptchaEnterprise() {
+  if (appCheckInstance) return Promise.resolve(true);
   if (recaptchaInitPromise) return recaptchaInitPromise;
   recaptchaInitPromise = (async () => {
     const siteKey = await resolveRecaptchaSiteKey();
     if (!siteKey) return false;
     try {
       await ensureFirebase();
+      if (appCheckInstance) {
+        state.recaptchaActive = true;
+        return true;
+      }
       appCheckInstance = initializeAppCheck(app, {
         provider: new ReCaptchaEnterpriseProvider(siteKey),
         isTokenAutoRefreshEnabled: true,
@@ -243,9 +290,9 @@ function handleFirestoreError(error, operationType, path) {
       providerInfo:
         auth.currentUser && Array.isArray(auth.currentUser.providerData)
           ? auth.currentUser.providerData.map((provider) => ({
-              providerId: provider.providerId,
-              email: provider.email,
-            }))
+            providerId: provider.providerId,
+            email: provider.email,
+          }))
           : [],
     },
     operationType,
@@ -410,8 +457,8 @@ initRecaptchaEnterprise();
 function isAdminUser() {
   return Boolean(
     state.user &&
-      state.user.emailVerified &&
-      String(state.user.email || "").toLowerCase() === ADMIN_EMAIL
+    state.user.emailVerified &&
+    String(state.user.email || "").toLowerCase() === ADMIN_EMAIL
   );
 }
 
@@ -538,7 +585,7 @@ function attachInventoryListener() {
     (error) => {
       try {
         handleFirestoreError(error, OperationType.LIST, path);
-      } catch (_) {}
+      } catch (_) { }
     }
   );
 }
@@ -644,7 +691,7 @@ function readLocalCartSnapshot() {
           items.push({ name, sku, qty, price });
         });
       }
-    } catch (_) {}
+    } catch (_) { }
   }
 
   // 2. Fallback to Used/Brand New quote list
@@ -670,7 +717,7 @@ function readLocalCartSnapshot() {
           });
         });
       }
-    } catch (_) {}
+    } catch (_) { }
   }
 
   return { items, totalLkr, fulfillment };
@@ -722,7 +769,7 @@ async function syncUserProfile(user, preferredDisplayName) {
           updatedAt: serverTimestamp(),
         });
         state.profile = { ...existingProfile, displayName: cleanPreferred };
-      } catch (_) {}
+      } catch (_) { }
     }
     return state.profile;
   }
@@ -791,7 +838,7 @@ async function syncUserProfile(user, preferredDisplayName) {
               updatedAt: serverTimestamp(),
             });
             resolvedName = cleanPreferred;
-          } catch (_) {}
+          } catch (_) { }
         }
         state.profile = {
           uid: data.uid || uid,
@@ -817,7 +864,7 @@ async function syncUserProfile(user, preferredDisplayName) {
       };
       try {
         handleFirestoreError(error, OperationType.WRITE, path);
-      } catch (_) {}
+      } catch (_) { }
       return state.profile;
     } finally {
       profileSyncInFlight.delete(uid);
@@ -907,7 +954,7 @@ function attachOrdersListener(user) {
       (error) => {
         try {
           handleFirestoreError(error, OperationType.LIST, "orders");
-        } catch (_) {}
+        } catch (_) { }
       }
     );
   }
@@ -943,7 +990,7 @@ function attachBankDetailsListener(user) {
       state.bankDetailsLoaded = true;
       try {
         handleFirestoreError(error, OperationType.GET, path);
-      } catch (_) {}
+      } catch (_) { }
     }
   );
 }
@@ -997,7 +1044,7 @@ function attachPaymentsListener(user) {
       (error) => {
         try {
           handleFirestoreError(error, OperationType.LIST, path);
-        } catch (_) {}
+        } catch (_) { }
       }
     );
   }
@@ -1088,7 +1135,7 @@ async function startOAuthRedirect(providerKey, providerObj, wasPaymentGate) {
         ts: Date.now(),
       })
     );
-  } catch (_) {}
+  } catch (_) { }
   await signInWithRedirect(auth, providerObj);
 }
 
@@ -1103,7 +1150,7 @@ async function signInWithGoogle() {
   try {
     await ensureFirebase();
     if (appCheckInstance) {
-      getAppCheckToken(appCheckInstance, false).catch(() => {});
+      getAppCheckToken(appCheckInstance, false).catch(() => { });
     }
     const result = await signInWithPopup(auth, googleProvider);
     const user = result.user;
@@ -1148,7 +1195,7 @@ async function signInWithFacebook() {
   try {
     await ensureFirebase();
     if (appCheckInstance) {
-      getAppCheckToken(appCheckInstance, false).catch(() => {});
+      getAppCheckToken(appCheckInstance, false).catch(() => { });
     }
     const result = await signInWithPopup(auth, facebookProvider);
     const user = result.user;
@@ -1297,10 +1344,10 @@ async function registerWithEmail(nameRaw, emailRaw, passwordRaw) {
     state.user = cred.user;
     try {
       await updateProfile(cred.user, { displayName });
-    } catch (_) {}
+    } catch (_) { }
     try {
       await sendEmailVerification(cred.user);
-    } catch (_) {}
+    } catch (_) { }
     await syncUserProfile(cred.user, displayName);
     const unlockedPayment = consumePendingPaymentRedirect() || wasPaymentGate;
     if (unlockedPayment) state.portalTab = "payments";
@@ -1751,7 +1798,7 @@ async function cancelMyOrder(orderId) {
       try {
         const trackSnap = await getDoc(doc(db, "orderTracking", orderNumber));
         hasTrackingDoc = trackSnap.exists();
-      } catch (_) {}
+      } catch (_) { }
     }
 
     const batch = writeBatch(db);
@@ -1808,7 +1855,7 @@ async function adminUpdateOrderStatus(orderId, nextStatus, statusNoteRaw) {
       try {
         const snap = await getDoc(trackRef);
         trackExists = snap.exists();
-      } catch (_) {}
+      } catch (_) { }
 
       if (trackExists) {
         batch.update(trackRef, {
@@ -2399,8 +2446,8 @@ function renderHeaderSlot() {
   const paymentBadge = state.payments.length > 0 ? '<span class="aqua-menu-count">' + state.payments.length + "</span>" : "";
   const adminItem = isAdminUser()
     ? '<button type="button" class="aqua-menu-item is-admin" data-aqua-action="portal-admin" role="menuitem">' +
-      '<span class="material-symbols-outlined">admin_panel_settings</span>' +
-      "<span>Workshop Admin Desk</span></button>"
+    '<span class="material-symbols-outlined">admin_panel_settings</span>' +
+    "<span>Workshop Admin Desk</span></button>"
     : "";
 
   slot.innerHTML =
@@ -2591,13 +2638,13 @@ function renderModalContent() {
   const feedbackHtml =
     (state.errorMsg
       ? '<div class="aqua-alert is-error" role="alert"><span class="material-symbols-outlined">error</span><span>' +
-        esc(state.errorMsg) +
-        "</span></div>"
+      esc(state.errorMsg) +
+      "</span></div>"
       : "") +
     (state.successMsg
       ? '<div class="aqua-alert is-success" role="status"><span class="material-symbols-outlined">check_circle</span><span>' +
-        esc(state.successMsg) +
-        "</span></div>"
+      esc(state.successMsg) +
+      "</span></div>"
       : "");
 
   if (!state.user) {
@@ -2616,73 +2663,73 @@ function renderModalContent() {
 
     const emailFormHtml = isReset
       ? '<form class="aqua-email-form" id="aqua-reset-form" novalidate>' +
-        '<div class="aqua-field">' +
-        '<label for="aqua-auth-email">Account Email Address</label>' +
-        '<input type="email" id="aqua-auth-email" autocomplete="email" placeholder="you@example.com" value="' + esc(state.draftEmail) + '" required />' +
-        "</div>" +
-        '<button type="submit" class="aqua-submit-btn"' +
-        (state.busy ? " disabled" : "") +
-        ">" +
-        '<span class="material-symbols-outlined">mail</span>' +
-        "<span>" + (state.busy ? "Sending Reset Link..." : "Send Password Reset Link") + "</span>" +
-        "</button>" +
-        '<div class="aqua-forgot-row">' +
-        '<button type="button" class="aqua-text-link" data-auth-mode="signin">← Back to Sign In</button>' +
-        "</div>" +
-        "</form>"
+      '<div class="aqua-field">' +
+      '<label for="aqua-auth-email">Account Email Address</label>' +
+      '<input type="email" id="aqua-auth-email" autocomplete="email" placeholder="you@example.com" value="' + esc(state.draftEmail) + '" required />' +
+      "</div>" +
+      '<button type="submit" class="aqua-submit-btn"' +
+      (state.busy ? " disabled" : "") +
+      ">" +
+      '<span class="material-symbols-outlined">mail</span>' +
+      "<span>" + (state.busy ? "Sending Reset Link..." : "Send Password Reset Link") + "</span>" +
+      "</button>" +
+      '<div class="aqua-forgot-row">' +
+      '<button type="button" class="aqua-text-link" data-auth-mode="signin">← Back to Sign In</button>' +
+      "</div>" +
+      "</form>"
       : '<form class="aqua-email-form" id="aqua-email-form" novalidate>' +
-        (isReg
-          ? '<div class="aqua-field">' +
-            '<label for="aqua-auth-name">Full Name</label>' +
-            '<input type="text" id="aqua-auth-name" autocomplete="name" maxlength="100" placeholder="e.g. Kasun Perera" value="' + esc(state.draftName) + '" required />' +
-            "</div>"
-          : "") +
-        '<div class="aqua-field">' +
-        '<label for="aqua-auth-email">Email Address</label>' +
-        '<input type="email" id="aqua-auth-email" autocomplete="email" maxlength="254" placeholder="you@example.com" value="' + esc(state.draftEmail) + '" required />' +
-        "</div>" +
-        '<div class="aqua-field">' +
-        '<div class="aqua-label-row">' +
-        '<label for="aqua-auth-pass">Password</label>' +
-        (!isReg
-          ? '<button type="button" class="aqua-text-link" data-auth-mode="reset">Forgot password?</button>'
-          : '<span class="aqua-field-hint">Min. 6 characters</span>') +
-        "</div>" +
-        '<div class="aqua-pass-wrap">' +
-        '<input type="password" id="aqua-auth-pass" autocomplete="' +
-        (isReg ? "new-password" : "current-password") +
-        '" minlength="6" placeholder="' +
-        (isReg ? "Create a password" : "Enter your password") +
-        '" required />' +
-        '<button type="button" class="aqua-pass-toggle" id="aqua-pass-toggle" aria-label="Show or hide password">' +
-        '<span class="material-symbols-outlined">visibility</span>' +
-        "</button>" +
-        "</div>" +
-        "</div>" +
-        '<button type="submit" class="aqua-submit-btn"' +
-        (state.busy ? " disabled" : "") +
-        ">" +
-        '<span class="material-symbols-outlined">' + (isReg ? "person_add" : "login") + "</span>" +
-        "<span>" +
-        (state.busy
-          ? isReg
-            ? "Creating Account..."
-            : "Signing In..."
-          : isReg
-            ? "Create Account with Email"
-            : "Sign In with Email") +
-        "</span>" +
-        "</button>" +
-        "</form>";
+      (isReg
+        ? '<div class="aqua-field">' +
+        '<label for="aqua-auth-name">Full Name</label>' +
+        '<input type="text" id="aqua-auth-name" autocomplete="name" maxlength="100" placeholder="e.g. Kasun Perera" value="' + esc(state.draftName) + '" required />' +
+        "</div>"
+        : "") +
+      '<div class="aqua-field">' +
+      '<label for="aqua-auth-email">Email Address</label>' +
+      '<input type="email" id="aqua-auth-email" autocomplete="email" maxlength="254" placeholder="you@example.com" value="' + esc(state.draftEmail) + '" required />' +
+      "</div>" +
+      '<div class="aqua-field">' +
+      '<div class="aqua-label-row">' +
+      '<label for="aqua-auth-pass">Password</label>' +
+      (!isReg
+        ? '<button type="button" class="aqua-text-link" data-auth-mode="reset">Forgot password?</button>'
+        : '<span class="aqua-field-hint">Min. 6 characters</span>') +
+      "</div>" +
+      '<div class="aqua-pass-wrap">' +
+      '<input type="password" id="aqua-auth-pass" autocomplete="' +
+      (isReg ? "new-password" : "current-password") +
+      '" minlength="6" placeholder="' +
+      (isReg ? "Create a password" : "Enter your password") +
+      '" required />' +
+      '<button type="button" class="aqua-pass-toggle" id="aqua-pass-toggle" aria-label="Show or hide password">' +
+      '<span class="material-symbols-outlined">visibility</span>' +
+      "</button>" +
+      "</div>" +
+      "</div>" +
+      '<button type="submit" class="aqua-submit-btn"' +
+      (state.busy ? " disabled" : "") +
+      ">" +
+      '<span class="material-symbols-outlined">' + (isReg ? "person_add" : "login") + "</span>" +
+      "<span>" +
+      (state.busy
+        ? isReg
+          ? "Creating Account..."
+          : "Signing In..."
+        : isReg
+          ? "Create Account with Email"
+          : "Sign In with Email") +
+      "</span>" +
+      "</button>" +
+      "</form>";
 
     const paymentGateBanner = state.paymentGateNotice
       ? '<div class="aqua-pay-gate-banner" role="note">' +
-        '<span class="material-symbols-outlined">lock</span>' +
-        "<div>" +
-        "<strong>Registration Required for Payment Portal</strong>" +
-        "<p>Create a free Aqua PC Parts account or sign in below to view our official bank transfer details and submit payment confirmations.</p>" +
-        "</div>" +
-        "</div>"
+      '<span class="material-symbols-outlined">lock</span>' +
+      "<div>" +
+      "<strong>Registration Required for Payment Portal</strong>" +
+      "<p>Create a free Aqua PC Parts account or sign in below to view our official bank transfer details and submit payment confirmations.</p>" +
+      "</div>" +
+      "</div>"
       : "";
 
     host.innerHTML =
@@ -2748,8 +2795,8 @@ function renderModalContent() {
       "</div>" +
       (state.recaptchaActive
         ? '<p class="aqua-recaptcha-note">Protected by reCAPTCHA Enterprise &middot; ' +
-          '<a href="https://policies.google.com/privacy" target="_blank" rel="noopener noreferrer">Privacy</a> &middot; ' +
-          '<a href="https://policies.google.com/terms" target="_blank" rel="noopener noreferrer">Terms</a></p>'
+        '<a href="https://policies.google.com/privacy" target="_blank" rel="noopener noreferrer">Privacy</a> &middot; ' +
+        '<a href="https://policies.google.com/terms" target="_blank" rel="noopener noreferrer">Terms</a></p>'
         : "") +
       '<div class="aqua-auth-foot">' +
       '<a href="https://aquapcsolutions.yyth.workers.dev/" target="_blank" rel="noopener noreferrer">Aqua PC Solutions Main Site ↗</a>' +
@@ -2870,22 +2917,22 @@ function renderModalContent() {
     (state.quotes.length === 0
       ? '<div class="aqua-empty-quotes"><span class="material-symbols-outlined">inventory_2</span><p>No saved quotes yet. Add PC parts to your Cart and save a cloud snapshot here.</p></div>'
       : '<div class="aqua-quotes-list">' +
-        state.quotes
-          .map(
-            (q) =>
-              '<div class="aqua-quote-item">' +
-              '<div class="aqua-quote-item-top">' +
-              "<div><strong>" + esc(q.title) + "</strong><small>" + esc(String(q.itemCount || 1)) + " item(s) · " + esc(fmtLKR(q.totalLkr || 0)) + "</small></div>" +
-              '<div class="aqua-quote-item-btns">' +
-              '<button type="button" class="aqua-mini-btn is-order" data-quote-to-order="' + esc(q.id) + '" title="Place tracked workshop order"><span class="material-symbols-outlined">local_shipping</span><span>Track Order</span></button>' +
-              '<a class="aqua-mini-btn is-wa" href="' + esc(buildQuoteWhatsAppHref(q)) + '" target="_blank" rel="noopener noreferrer"><span class="material-symbols-outlined">send</span><span>WhatsApp</span></a>' +
-              '<button type="button" class="aqua-mini-btn is-del" data-del-quote="' + esc(q.id) + '" aria-label="Delete saved quote"><span class="material-symbols-outlined">delete</span></button>' +
-              "</div></div>" +
-              '<pre class="aqua-quote-summary">' + esc(q.summary || "") + "</pre>" +
-              "</div>"
-          )
-          .join("") +
-        "</div>");
+      state.quotes
+        .map(
+          (q) =>
+            '<div class="aqua-quote-item">' +
+            '<div class="aqua-quote-item-top">' +
+            "<div><strong>" + esc(q.title) + "</strong><small>" + esc(String(q.itemCount || 1)) + " item(s) · " + esc(fmtLKR(q.totalLkr || 0)) + "</small></div>" +
+            '<div class="aqua-quote-item-btns">' +
+            '<button type="button" class="aqua-mini-btn is-order" data-quote-to-order="' + esc(q.id) + '" title="Place tracked workshop order"><span class="material-symbols-outlined">local_shipping</span><span>Track Order</span></button>' +
+            '<a class="aqua-mini-btn is-wa" href="' + esc(buildQuoteWhatsAppHref(q)) + '" target="_blank" rel="noopener noreferrer"><span class="material-symbols-outlined">send</span><span>WhatsApp</span></a>' +
+            '<button type="button" class="aqua-mini-btn is-del" data-del-quote="' + esc(q.id) + '" aria-label="Delete saved quote"><span class="material-symbols-outlined">delete</span></button>' +
+            "</div></div>" +
+            '<pre class="aqua-quote-summary">' + esc(q.summary || "") + "</pre>" +
+            "</div>"
+        )
+        .join("") +
+      "</div>");
 
   const ordersBody =
     '<div class="aqua-order-create-bar">' +
@@ -2907,32 +2954,32 @@ function renderModalContent() {
     (state.orders.length === 0
       ? '<div class="aqua-empty-quotes"><span class="material-symbols-outlined">local_shipping</span><p>No tracked orders yet. Submit your current Cart above to receive a live Aqua Order # and printable invoice.</p></div>'
       : '<div class="aqua-orders-list">' +
-        state.orders
-          .map(
-            (o) =>
-              '<div class="aqua-order-card">' +
-              '<div class="aqua-order-card-top">' +
-              '<div><strong class="aqua-order-num">' + esc(o.orderNumber || o.orderId) + "</strong>" +
-              "<small>" + esc(fmtDate(o.createdAt)) + " · " + esc(String(o.itemCount || 1)) + " item(s) · <b>" + esc(fmtLKR(Number(o.totalLkr) || 0)) + "</b></small></div>" +
-              '<div class="aqua-quote-item-btns">' +
-              (o.status !== "cancelled"
-                ? '<button type="button" class="aqua-mini-btn is-pay" data-pay-order="' + esc(o.id) + '" title="Pay via Bank Transfer"><span class="material-symbols-outlined">account_balance</span><span>Pay</span></button>'
-                : "") +
-              '<button type="button" class="aqua-mini-btn is-inv" data-print-order="' + esc(o.id) + '"><span class="material-symbols-outlined">receipt_long</span><span>Invoice</span></button>' +
-              '<a class="aqua-mini-btn is-wa" href="' + esc(buildOrderWhatsAppHref(o)) + '" target="_blank" rel="noopener noreferrer"><span class="material-symbols-outlined">chat</span></a>' +
-              (o.status === "received"
-                ? '<button type="button" class="aqua-mini-btn is-del" data-cancel-order="' + esc(o.id) + '" title="Cancel newly received order"><span class="material-symbols-outlined">cancel</span></button>'
-                : "") +
-              "</div></div>" +
-              renderOrderProgressBar(o.status) +
-              (o.statusNote
-                ? '<div class="aqua-order-tech-note"><span class="material-symbols-outlined">biotech</span><span>' + esc(o.statusNote) + "</span></div>"
-                : "") +
-              '<pre class="aqua-quote-summary">' + esc(o.itemsSummary || "") + "</pre>" +
-              "</div>"
-          )
-          .join("") +
-        "</div>");
+      state.orders
+        .map(
+          (o) =>
+            '<div class="aqua-order-card">' +
+            '<div class="aqua-order-card-top">' +
+            '<div><strong class="aqua-order-num">' + esc(o.orderNumber || o.orderId) + "</strong>" +
+            "<small>" + esc(fmtDate(o.createdAt)) + " · " + esc(String(o.itemCount || 1)) + " item(s) · <b>" + esc(fmtLKR(Number(o.totalLkr) || 0)) + "</b></small></div>" +
+            '<div class="aqua-quote-item-btns">' +
+            (o.status !== "cancelled"
+              ? '<button type="button" class="aqua-mini-btn is-pay" data-pay-order="' + esc(o.id) + '" title="Pay via Bank Transfer"><span class="material-symbols-outlined">account_balance</span><span>Pay</span></button>'
+              : "") +
+            '<button type="button" class="aqua-mini-btn is-inv" data-print-order="' + esc(o.id) + '"><span class="material-symbols-outlined">receipt_long</span><span>Invoice</span></button>' +
+            '<a class="aqua-mini-btn is-wa" href="' + esc(buildOrderWhatsAppHref(o)) + '" target="_blank" rel="noopener noreferrer"><span class="material-symbols-outlined">chat</span></a>' +
+            (o.status === "received"
+              ? '<button type="button" class="aqua-mini-btn is-del" data-cancel-order="' + esc(o.id) + '" title="Cancel newly received order"><span class="material-symbols-outlined">cancel</span></button>'
+              : "") +
+            "</div></div>" +
+            renderOrderProgressBar(o.status) +
+            (o.statusNote
+              ? '<div class="aqua-order-tech-note"><span class="material-symbols-outlined">biotech</span><span>' + esc(o.statusNote) + "</span></div>"
+              : "") +
+            '<pre class="aqua-quote-summary">' + esc(o.itemsSummary || "") + "</pre>" +
+            "</div>"
+        )
+        .join("") +
+      "</div>");
 
   // ── Login-Gated Buyer Payment Portal Tab ──
   const bd = state.bankDetails;
@@ -2941,9 +2988,9 @@ function renderModalContent() {
     state.pendingPaymentAmount ||
     (prefillOrder
       ? (() => {
-          const m = state.orders.find((o) => String(o.orderNumber || "").toUpperCase() === prefillOrder);
-          return m && Number(m.totalLkr) > 0 ? String(Math.round(Number(m.totalLkr))) : "";
-        })()
+        const m = state.orders.find((o) => String(o.orderNumber || "").toUpperCase() === prefillOrder);
+        return m && Number(m.totalLkr) > 0 ? String(Math.round(Number(m.totalLkr))) : "";
+      })()
       : cartSnap.totalLkr > 0
         ? String(Math.round(cartSnap.totalLkr))
         : "");
@@ -2952,37 +2999,37 @@ function renderModalContent() {
     ? '<div class="aqua-bank-card is-loading"><span class="material-symbols-outlined aqua-spin">progress_activity</span><span>Loading official bank transfer details...</span></div>'
     : bd
       ? '<div class="aqua-bank-card">' +
-        '<div class="aqua-bank-card-head">' +
-        '<div><span class="aqua-bank-eyebrow"><span class="material-symbols-outlined">verified_user</span> MEMBERS-ONLY OFFICIAL BANK ACCOUNT</span>' +
-        "<h4>" + esc(bd.bankName) + "</h4></div>" +
-        '<button type="button" class="aqua-mini-btn is-inv" id="aqua-copy-all-bank"><span class="material-symbols-outlined">content_copy</span><span>Copy All</span></button>' +
-        "</div>" +
-        '<div class="aqua-bank-grid">' +
-        '<div class="aqua-bank-row"><small>Account Holder Name</small><div class="aqua-bank-val"><strong>' + esc(bd.accountName) + '</strong><button type="button" class="aqua-copy-icon-btn" data-copy-bank="' + esc(bd.accountName) + '" data-copy-label="Account Name" aria-label="Copy account name"><span class="material-symbols-outlined">content_copy</span></button></div></div>' +
-        '<div class="aqua-bank-row"><small>Account Number</small><div class="aqua-bank-val"><strong class="aqua-bank-mono">' + esc(bd.accountNumber) + '</strong><button type="button" class="aqua-copy-icon-btn" data-copy-bank="' + esc(bd.accountNumber) + '" data-copy-label="Account Number" aria-label="Copy account number"><span class="material-symbols-outlined">content_copy</span></button></div></div>' +
-        '<div class="aqua-bank-row"><small>Branch</small><div class="aqua-bank-val"><strong>' + esc(bd.branch) + "</strong></div></div>" +
-        (bd.swiftCode
-          ? '<div class="aqua-bank-row"><small>Bank / SWIFT Code</small><div class="aqua-bank-val"><strong class="aqua-bank-mono">' + esc(bd.swiftCode) + '</strong><button type="button" class="aqua-copy-icon-btn" data-copy-bank="' + esc(bd.swiftCode) + '" data-copy-label="SWIFT Code" aria-label="Copy SWIFT code"><span class="material-symbols-outlined">content_copy</span></button></div></div>'
-          : "") +
-        "</div>" +
-        (bd.instructions
-          ? '<div class="aqua-bank-instructions"><span class="material-symbols-outlined">info</span><p>' + esc(bd.instructions) + "</p></div>"
-          : "") +
-        "</div>"
+      '<div class="aqua-bank-card-head">' +
+      '<div><span class="aqua-bank-eyebrow"><span class="material-symbols-outlined">verified_user</span> MEMBERS-ONLY OFFICIAL BANK ACCOUNT</span>' +
+      "<h4>" + esc(bd.bankName) + "</h4></div>" +
+      '<button type="button" class="aqua-mini-btn is-inv" id="aqua-copy-all-bank"><span class="material-symbols-outlined">content_copy</span><span>Copy All</span></button>' +
+      "</div>" +
+      '<div class="aqua-bank-grid">' +
+      '<div class="aqua-bank-row"><small>Account Holder Name</small><div class="aqua-bank-val"><strong>' + esc(bd.accountName) + '</strong><button type="button" class="aqua-copy-icon-btn" data-copy-bank="' + esc(bd.accountName) + '" data-copy-label="Account Name" aria-label="Copy account name"><span class="material-symbols-outlined">content_copy</span></button></div></div>' +
+      '<div class="aqua-bank-row"><small>Account Number</small><div class="aqua-bank-val"><strong class="aqua-bank-mono">' + esc(bd.accountNumber) + '</strong><button type="button" class="aqua-copy-icon-btn" data-copy-bank="' + esc(bd.accountNumber) + '" data-copy-label="Account Number" aria-label="Copy account number"><span class="material-symbols-outlined">content_copy</span></button></div></div>' +
+      '<div class="aqua-bank-row"><small>Branch</small><div class="aqua-bank-val"><strong>' + esc(bd.branch) + "</strong></div></div>" +
+      (bd.swiftCode
+        ? '<div class="aqua-bank-row"><small>Bank / SWIFT Code</small><div class="aqua-bank-val"><strong class="aqua-bank-mono">' + esc(bd.swiftCode) + '</strong><button type="button" class="aqua-copy-icon-btn" data-copy-bank="' + esc(bd.swiftCode) + '" data-copy-label="SWIFT Code" aria-label="Copy SWIFT code"><span class="material-symbols-outlined">content_copy</span></button></div></div>'
+        : "") +
+      "</div>" +
+      (bd.instructions
+        ? '<div class="aqua-bank-instructions"><span class="material-symbols-outlined">info</span><p>' + esc(bd.instructions) + "</p></div>"
+        : "") +
+      "</div>"
       : '<div class="aqua-bank-card is-pending">' +
-        '<div class="aqua-bank-pending-head">' +
-        '<span class="material-symbols-outlined">account_balance</span>' +
-        "<div>" +
-        "<h4>Official Bank Details Pending Setup</h4>" +
-        "<p>Official bank transfer details are being finalized by the Aqua PC Parts billing desk. Once published, they will appear right here for registered members.</p>" +
-        "</div>" +
-        "</div>" +
-        '<div class="aqua-bank-pending-actions">' +
-        (admin
-          ? '<button type="button" class="aqua-primary-btn" id="aqua-goto-admin-bank"><span class="material-symbols-outlined">edit_note</span><span>Set Up Bank Details in Admin Tab</span></button>'
-          : '<a class="aqua-mini-btn is-wa" href="https://wa.me/' + WHATSAPP_PHONE + '?text=' + encodeURIComponent("Hello Aqua PC Parts! I am logged in to my account (" + email + ") and would like to confirm bank transfer details for my order.") + '" target="_blank" rel="noopener noreferrer"><span class="material-symbols-outlined">chat</span><span>Confirm Bank Details on WhatsApp</span></a>') +
-        "</div>" +
-        "</div>";
+      '<div class="aqua-bank-pending-head">' +
+      '<span class="material-symbols-outlined">account_balance</span>' +
+      "<div>" +
+      "<h4>Official Bank Details Pending Setup</h4>" +
+      "<p>Official bank transfer details are being finalized by the Aqua PC Parts billing desk. Once published, they will appear right here for registered members.</p>" +
+      "</div>" +
+      "</div>" +
+      '<div class="aqua-bank-pending-actions">' +
+      (admin
+        ? '<button type="button" class="aqua-primary-btn" id="aqua-goto-admin-bank"><span class="material-symbols-outlined">edit_note</span><span>Set Up Bank Details in Admin Tab</span></button>'
+        : '<a class="aqua-mini-btn is-wa" href="https://wa.me/' + WHATSAPP_PHONE + '?text=' + encodeURIComponent("Hello Aqua PC Parts! I am logged in to my account (" + email + ") and would like to confirm bank transfer details for my order.") + '" target="_blank" rel="noopener noreferrer"><span class="material-symbols-outlined">chat</span><span>Confirm Bank Details on WhatsApp</span></a>') +
+      "</div>" +
+      "</div>";
 
   const orderPickerOptions =
     '<option value="">Direct / Cart Payment (no order selected)</option>' +
@@ -3010,9 +3057,9 @@ function renderModalContent() {
     '<form id="aqua-payment-form" class="aqua-portal-form">' +
     (state.orders.length > 0
       ? '<div class="aqua-field">' +
-        '<label for="aqua-pay-order-select">Link to Your Tracked Order (optional)</label>' +
-        '<select id="aqua-pay-order-select">' + orderPickerOptions + "</select>" +
-        "</div>"
+      '<label for="aqua-pay-order-select">Link to Your Tracked Order (optional)</label>' +
+      '<select id="aqua-pay-order-select">' + orderPickerOptions + "</select>" +
+      "</div>"
       : "") +
     '<div class="aqua-field-row">' +
     '<div class="aqua-field">' +
@@ -3064,44 +3111,44 @@ function renderModalContent() {
     (state.payments.length === 0
       ? '<div class="aqua-empty-quotes"><span class="material-symbols-outlined">receipt</span><p>No payment confirmations submitted yet. Your bank transfers and verification status will appear here.</p></div>'
       : '<div class="aqua-orders-list">' +
-        state.payments
-          .map((p) => {
-            const stKey = p.status || "pending_verification";
-            const stLabel = PAYMENT_STATUS_LABELS[stKey] || stKey;
-            return (
-              '<div class="aqua-payment-card is-' + esc(stKey) + '">' +
-              '<div class="aqua-order-card-top">' +
-              "<div>" +
-              '<div class="aqua-pay-card-title">' +
-              '<strong class="aqua-order-num">' + esc(p.paymentRef || p.paymentId) + "</strong>" +
-              '<span class="aqua-pay-status is-' + esc(stKey) + '">' + esc(stLabel) + "</span>" +
-              "</div>" +
-              "<small>" +
-              "<b>" + esc(fmtLKR(Number(p.amountLkr) || 0)) + "</b>" +
-              " · " + esc(PAYMENT_METHOD_LABELS[p.paymentMethod] || p.paymentMethod) +
-              (p.orderNumber ? " · Order " + esc(p.orderNumber) : "") +
-              "</small>" +
-              "</div>" +
-              '<div class="aqua-quote-item-btns">' +
-              '<a class="aqua-mini-btn is-wa" href="' + esc(buildPaymentWhatsAppHref(p)) + '" target="_blank" rel="noopener noreferrer" title="Send slip via WhatsApp"><span class="material-symbols-outlined">chat</span><span>Slip</span></a>' +
-              (stKey === "pending_verification"
-                ? '<button type="button" class="aqua-mini-btn is-del" data-cancel-payment="' + esc(p.id) + '" title="Cancel pending payment"><span class="material-symbols-outlined">cancel</span></button>'
-                : "") +
-              "</div></div>" +
-              '<div class="aqua-pay-meta-grid">' +
-              "<span><b>Ref #:</b> " + esc(p.bankReference || "-") + "</span>" +
-              "<span><b>Depositor:</b> " + esc(p.depositorName || "-") + "</span>" +
-              "<span><b>Date:</b> " + esc(p.transferDate || fmtDate(p.createdAt)) + "</span>" +
-              "</div>" +
-              (p.note ? '<p class="aqua-pay-buyer-note">Note: ' + esc(p.note) + "</p>" : "") +
-              (p.adminNote
-                ? '<div class="aqua-order-tech-note"><span class="material-symbols-outlined">verified_user</span><span>Billing Desk: ' + esc(p.adminNote) + "</span></div>"
-                : "") +
-              "</div>"
-            );
-          })
-          .join("") +
-        "</div>") +
+      state.payments
+        .map((p) => {
+          const stKey = p.status || "pending_verification";
+          const stLabel = PAYMENT_STATUS_LABELS[stKey] || stKey;
+          return (
+            '<div class="aqua-payment-card is-' + esc(stKey) + '">' +
+            '<div class="aqua-order-card-top">' +
+            "<div>" +
+            '<div class="aqua-pay-card-title">' +
+            '<strong class="aqua-order-num">' + esc(p.paymentRef || p.paymentId) + "</strong>" +
+            '<span class="aqua-pay-status is-' + esc(stKey) + '">' + esc(stLabel) + "</span>" +
+            "</div>" +
+            "<small>" +
+            "<b>" + esc(fmtLKR(Number(p.amountLkr) || 0)) + "</b>" +
+            " · " + esc(PAYMENT_METHOD_LABELS[p.paymentMethod] || p.paymentMethod) +
+            (p.orderNumber ? " · Order " + esc(p.orderNumber) : "") +
+            "</small>" +
+            "</div>" +
+            '<div class="aqua-quote-item-btns">' +
+            '<a class="aqua-mini-btn is-wa" href="' + esc(buildPaymentWhatsAppHref(p)) + '" target="_blank" rel="noopener noreferrer" title="Send slip via WhatsApp"><span class="material-symbols-outlined">chat</span><span>Slip</span></a>' +
+            (stKey === "pending_verification"
+              ? '<button type="button" class="aqua-mini-btn is-del" data-cancel-payment="' + esc(p.id) + '" title="Cancel pending payment"><span class="material-symbols-outlined">cancel</span></button>'
+              : "") +
+            "</div></div>" +
+            '<div class="aqua-pay-meta-grid">' +
+            "<span><b>Ref #:</b> " + esc(p.bankReference || "-") + "</span>" +
+            "<span><b>Depositor:</b> " + esc(p.depositorName || "-") + "</span>" +
+            "<span><b>Date:</b> " + esc(p.transferDate || fmtDate(p.createdAt)) + "</span>" +
+            "</div>" +
+            (p.note ? '<p class="aqua-pay-buyer-note">Note: ' + esc(p.note) + "</p>" : "") +
+            (p.adminNote
+              ? '<div class="aqua-order-tech-note"><span class="material-symbols-outlined">verified_user</span><span>Billing Desk: ' + esc(p.adminNote) + "</span></div>"
+              : "") +
+            "</div>"
+          );
+        })
+        .join("") +
+      "</div>") +
     "</div>" +
     "</div>";
 
@@ -3109,118 +3156,118 @@ function renderModalContent() {
   const adminBody = !admin
     ? ""
     : '<div class="aqua-admin-desk">' +
-      '<div class="aqua-admin-section" id="aqua-admin-bank-section">' +
-      '<h4><span class="material-symbols-outlined">account_balance</span> Official Bank Transfer Details (Visible After Login Only)</h4>' +
-      '<form id="aqua-admin-bank-form" class="aqua-admin-bank-form">' +
-      '<div class="aqua-field-row">' +
-      '<div class="aqua-field"><label for="adm-bank-name">Bank Name</label><input id="adm-bank-name" type="text" maxlength="' + LIMITS.bankNameMax + '" placeholder="e.g. Commercial Bank of Ceylon" value="' + esc((bd && bd.bankName) || "") + '" required /></div>' +
-      '<div class="aqua-field"><label for="adm-bank-branch">Branch</label><input id="adm-bank-branch" type="text" maxlength="' + LIMITS.branchMax + '" placeholder="e.g. Embilipitiya Branch" value="' + esc((bd && bd.branch) || "") + '" required /></div>' +
-      "</div>" +
-      '<div class="aqua-field-row">' +
-      '<div class="aqua-field"><label for="adm-bank-holder">Account Holder Name</label><input id="adm-bank-holder" type="text" maxlength="' + LIMITS.accountNameMax + '" placeholder="e.g. Aqua PC Solutions" value="' + esc((bd && bd.accountName) || "") + '" required /></div>' +
-      '<div class="aqua-field"><label for="adm-bank-num">Account Number</label><input id="adm-bank-num" type="text" maxlength="' + LIMITS.accountNumberMax + '" placeholder="Enter bank account number" value="' + esc((bd && bd.accountNumber) || "") + '" required /></div>' +
-      "</div>" +
-      '<div class="aqua-field-row">' +
-      '<div class="aqua-field"><label for="adm-bank-swift">Bank / SWIFT Code (optional)</label><input id="adm-bank-swift" type="text" maxlength="' + LIMITS.swiftCodeMax + '" placeholder="e.g. CCEYLKLX" value="' + esc((bd && bd.swiftCode) || "") + '" /></div>' +
-      '<div class="aqua-field"><label for="adm-bank-instr">Transfer Instructions (optional)</label><input id="adm-bank-instr" type="text" maxlength="' + LIMITS.instructionsMax + '" placeholder="e.g. Put your Order # in transfer remarks" value="' + esc((bd && bd.instructions) || "") + '" /></div>' +
-      "</div>" +
-      '<button type="submit" class="aqua-primary-btn"' + (state.busy ? " disabled" : "") + '><span class="material-symbols-outlined">save</span><span>Save Official Bank Details</span></button>' +
-      "</form>" +
-      "</div>" +
-      '<div class="aqua-admin-section">' +
-      '<h4><span class="material-symbols-outlined">payments</span> Buyer Payments Verification Queue (' + state.adminPayments.length + ")</h4>" +
-      (state.adminPayments.length === 0
-        ? '<small class="aqua-order-hint">No buyer payment confirmations submitted yet.</small>'
-        : '<div class="aqua-orders-list">' +
-          state.adminPayments
-            .map(
-              (p) =>
-                '<div class="aqua-order-card is-admin-row">' +
-                '<div class="aqua-order-card-top">' +
-                '<div><strong class="aqua-order-num">' + esc(p.paymentRef || p.paymentId) + " · " + esc(p.customerName) + "</strong>" +
-                "<small>" + esc(p.customerEmail) + (p.orderNumber ? " · Order " + esc(p.orderNumber) : "") + " · <b>" + esc(fmtLKR(Number(p.amountLkr) || 0)) + "</b></small></div>" +
-                '<span class="aqua-pay-status is-' + esc(p.status || "pending_verification") + '">' + esc(PAYMENT_STATUS_LABELS[p.status] || p.status) + "</span>" +
-                "</div>" +
-                '<div class="aqua-pay-meta-grid">' +
-                "<span><b>Method:</b> " + esc(PAYMENT_METHOD_LABELS[p.paymentMethod] || p.paymentMethod) + "</span>" +
-                "<span><b>Ref #:</b> " + esc(p.bankReference || "-") + "</span>" +
-                "<span><b>Depositor:</b> " + esc(p.depositorName || "-") + " (" + esc(p.transferDate || "-") + ")</span>" +
-                "</div>" +
-                (p.note ? '<p class="aqua-pay-buyer-note">Buyer Note: ' + esc(p.note) + "</p>" : "") +
-                '<div class="aqua-admin-order-controls">' +
-                '<select data-admin-pay-status="' + esc(p.id) + '">' +
-                LIMITS.validPaymentStatuses
-                  .map(
-                    (st) =>
-                      '<option value="' + st + '"' + (p.status === st ? " selected" : "") + ">" + esc(PAYMENT_STATUS_LABELS[st] || st) + "</option>"
-                  )
-                  .join("") +
-                "</select>" +
-                '<input type="text" maxlength="' + LIMITS.paymentNoteMax + '" data-admin-pay-note="' + esc(p.id) + '" value="' + esc(p.adminNote || "") + '" placeholder="Verification / billing note..." />' +
-                '<button type="button" class="aqua-mini-btn is-order" data-admin-save-payment="' + esc(p.id) + '">Update</button>' +
-                "</div>" +
-                "</div>"
-            )
-            .join("") +
-          "</div>") +
-      "</div>" +
-      '<div class="aqua-admin-section">' +
-      '<h4><span class="material-symbols-outlined">inventory</span> Live Firestore Stock &amp; Price Override</h4>' +
-      '<form id="aqua-admin-stock-form" class="aqua-admin-stock-form">' +
-      '<input id="adm-sku" type="text" placeholder="SKU (e.g. AQ-VGA-0001)" required />' +
-      '<input id="adm-qty" type="number" min="0" max="9999" value="2" placeholder="Stock Qty" required />' +
-      '<input id="adm-price" type="number" min="0" max="100000000" placeholder="LKR Price (optional)" />' +
-      '<input id="adm-note" type="text" maxlength="120" placeholder="Workshop note (e.g. Last unit)" />' +
-      '<button type="submit" class="aqua-primary-btn"' + (state.busy ? " disabled" : "") + '><span class="material-symbols-outlined">bolt</span><span>Sync Live</span></button>' +
-      "</form>" +
-      (overridesList.length > 0
-        ? '<div class="aqua-override-chips">' +
-          overridesList
-            .slice(0, 12)
-            .map(
-              (ov) =>
-                '<span class="aqua-ov-chip"><b>' +
-                esc(ov.sku) +
-                "</b> · Qty: " +
-                esc(String(ov.stockQty)) +
-                (typeof ov.price === "number" ? " · " + esc(fmtLKR(ov.price)) : "") +
-                '<button type="button" data-del-ov="' + esc(ov.sku) + '" aria-label="Remove override">×</button></span>'
-            )
-            .join("") +
-          "</div>"
-        : '<small class="aqua-order-hint">No live stock overrides yet. Enter any SKU above to show real-time low-stock badges across all visitors.</small>') +
-      "</div>" +
-      '<div class="aqua-admin-section">' +
-      '<h4><span class="material-symbols-outlined">local_shipping</span> Customer Orders Queue (' + state.adminOrders.length + ")</h4>" +
-      (state.adminOrders.length === 0
-        ? '<small class="aqua-order-hint">No customer orders submitted yet.</small>'
-        : '<div class="aqua-orders-list">' +
-          state.adminOrders
-            .map(
-              (o) =>
-                '<div class="aqua-order-card is-admin-row">' +
-                '<div class="aqua-order-card-top">' +
-                '<div><strong class="aqua-order-num">' + esc(o.orderNumber || o.orderId) + " · " + esc(o.customerName) + "</strong>" +
-                "<small>" + esc(o.customerEmail) + (o.customerPhone ? " · " + esc(o.customerPhone) : "") + " · <b>" + esc(fmtLKR(Number(o.totalLkr) || 0)) + "</b></small></div>" +
-                '<button type="button" class="aqua-mini-btn is-inv" data-print-admin-order="' + esc(o.id) + '"><span class="material-symbols-outlined">receipt_long</span><span>Invoice</span></button>' +
-                "</div>" +
-                '<div class="aqua-admin-order-controls">' +
-                '<select data-admin-status="' + esc(o.id) + '">' +
-                LIMITS.validStatuses
-                  .map(
-                    (st) =>
-                      '<option value="' + st + '"' + (o.status === st ? " selected" : "") + ">" + esc(STATUS_LABELS[st] || st) + "</option>"
-                  )
-                  .join("") +
-                "</select>" +
-                '<input type="text" maxlength="240" data-admin-note="' + esc(o.id) + '" value="' + esc(o.statusNote || "") + '" placeholder="Bench-test / courier note..." />' +
-                '<button type="button" class="aqua-mini-btn is-order" data-admin-save-order="' + esc(o.id) + '">Update</button>' +
-                "</div>" +
-                "</div>"
-            )
-            .join("") +
-          "</div>") +
-      "</div></div>";
+    '<div class="aqua-admin-section" id="aqua-admin-bank-section">' +
+    '<h4><span class="material-symbols-outlined">account_balance</span> Official Bank Transfer Details (Visible After Login Only)</h4>' +
+    '<form id="aqua-admin-bank-form" class="aqua-admin-bank-form">' +
+    '<div class="aqua-field-row">' +
+    '<div class="aqua-field"><label for="adm-bank-name">Bank Name</label><input id="adm-bank-name" type="text" maxlength="' + LIMITS.bankNameMax + '" placeholder="e.g. Commercial Bank of Ceylon" value="' + esc((bd && bd.bankName) || "") + '" required /></div>' +
+    '<div class="aqua-field"><label for="adm-bank-branch">Branch</label><input id="adm-bank-branch" type="text" maxlength="' + LIMITS.branchMax + '" placeholder="e.g. Embilipitiya Branch" value="' + esc((bd && bd.branch) || "") + '" required /></div>' +
+    "</div>" +
+    '<div class="aqua-field-row">' +
+    '<div class="aqua-field"><label for="adm-bank-holder">Account Holder Name</label><input id="adm-bank-holder" type="text" maxlength="' + LIMITS.accountNameMax + '" placeholder="e.g. Aqua PC Solutions" value="' + esc((bd && bd.accountName) || "") + '" required /></div>' +
+    '<div class="aqua-field"><label for="adm-bank-num">Account Number</label><input id="adm-bank-num" type="text" maxlength="' + LIMITS.accountNumberMax + '" placeholder="Enter bank account number" value="' + esc((bd && bd.accountNumber) || "") + '" required /></div>' +
+    "</div>" +
+    '<div class="aqua-field-row">' +
+    '<div class="aqua-field"><label for="adm-bank-swift">Bank / SWIFT Code (optional)</label><input id="adm-bank-swift" type="text" maxlength="' + LIMITS.swiftCodeMax + '" placeholder="e.g. CCEYLKLX" value="' + esc((bd && bd.swiftCode) || "") + '" /></div>' +
+    '<div class="aqua-field"><label for="adm-bank-instr">Transfer Instructions (optional)</label><input id="adm-bank-instr" type="text" maxlength="' + LIMITS.instructionsMax + '" placeholder="e.g. Put your Order # in transfer remarks" value="' + esc((bd && bd.instructions) || "") + '" /></div>' +
+    "</div>" +
+    '<button type="submit" class="aqua-primary-btn"' + (state.busy ? " disabled" : "") + '><span class="material-symbols-outlined">save</span><span>Save Official Bank Details</span></button>' +
+    "</form>" +
+    "</div>" +
+    '<div class="aqua-admin-section">' +
+    '<h4><span class="material-symbols-outlined">payments</span> Buyer Payments Verification Queue (' + state.adminPayments.length + ")</h4>" +
+    (state.adminPayments.length === 0
+      ? '<small class="aqua-order-hint">No buyer payment confirmations submitted yet.</small>'
+      : '<div class="aqua-orders-list">' +
+      state.adminPayments
+        .map(
+          (p) =>
+            '<div class="aqua-order-card is-admin-row">' +
+            '<div class="aqua-order-card-top">' +
+            '<div><strong class="aqua-order-num">' + esc(p.paymentRef || p.paymentId) + " · " + esc(p.customerName) + "</strong>" +
+            "<small>" + esc(p.customerEmail) + (p.orderNumber ? " · Order " + esc(p.orderNumber) : "") + " · <b>" + esc(fmtLKR(Number(p.amountLkr) || 0)) + "</b></small></div>" +
+            '<span class="aqua-pay-status is-' + esc(p.status || "pending_verification") + '">' + esc(PAYMENT_STATUS_LABELS[p.status] || p.status) + "</span>" +
+            "</div>" +
+            '<div class="aqua-pay-meta-grid">' +
+            "<span><b>Method:</b> " + esc(PAYMENT_METHOD_LABELS[p.paymentMethod] || p.paymentMethod) + "</span>" +
+            "<span><b>Ref #:</b> " + esc(p.bankReference || "-") + "</span>" +
+            "<span><b>Depositor:</b> " + esc(p.depositorName || "-") + " (" + esc(p.transferDate || "-") + ")</span>" +
+            "</div>" +
+            (p.note ? '<p class="aqua-pay-buyer-note">Buyer Note: ' + esc(p.note) + "</p>" : "") +
+            '<div class="aqua-admin-order-controls">' +
+            '<select data-admin-pay-status="' + esc(p.id) + '">' +
+            LIMITS.validPaymentStatuses
+              .map(
+                (st) =>
+                  '<option value="' + st + '"' + (p.status === st ? " selected" : "") + ">" + esc(PAYMENT_STATUS_LABELS[st] || st) + "</option>"
+              )
+              .join("") +
+            "</select>" +
+            '<input type="text" maxlength="' + LIMITS.paymentNoteMax + '" data-admin-pay-note="' + esc(p.id) + '" value="' + esc(p.adminNote || "") + '" placeholder="Verification / billing note..." />' +
+            '<button type="button" class="aqua-mini-btn is-order" data-admin-save-payment="' + esc(p.id) + '">Update</button>' +
+            "</div>" +
+            "</div>"
+        )
+        .join("") +
+      "</div>") +
+    "</div>" +
+    '<div class="aqua-admin-section">' +
+    '<h4><span class="material-symbols-outlined">inventory</span> Live Firestore Stock &amp; Price Override</h4>' +
+    '<form id="aqua-admin-stock-form" class="aqua-admin-stock-form">' +
+    '<input id="adm-sku" type="text" placeholder="SKU (e.g. AQ-VGA-0001)" required />' +
+    '<input id="adm-qty" type="number" min="0" max="9999" value="2" placeholder="Stock Qty" required />' +
+    '<input id="adm-price" type="number" min="0" max="100000000" placeholder="LKR Price (optional)" />' +
+    '<input id="adm-note" type="text" maxlength="120" placeholder="Workshop note (e.g. Last unit)" />' +
+    '<button type="submit" class="aqua-primary-btn"' + (state.busy ? " disabled" : "") + '><span class="material-symbols-outlined">bolt</span><span>Sync Live</span></button>' +
+    "</form>" +
+    (overridesList.length > 0
+      ? '<div class="aqua-override-chips">' +
+      overridesList
+        .slice(0, 12)
+        .map(
+          (ov) =>
+            '<span class="aqua-ov-chip"><b>' +
+            esc(ov.sku) +
+            "</b> · Qty: " +
+            esc(String(ov.stockQty)) +
+            (typeof ov.price === "number" ? " · " + esc(fmtLKR(ov.price)) : "") +
+            '<button type="button" data-del-ov="' + esc(ov.sku) + '" aria-label="Remove override">×</button></span>'
+        )
+        .join("") +
+      "</div>"
+      : '<small class="aqua-order-hint">No live stock overrides yet. Enter any SKU above to show real-time low-stock badges across all visitors.</small>') +
+    "</div>" +
+    '<div class="aqua-admin-section">' +
+    '<h4><span class="material-symbols-outlined">local_shipping</span> Customer Orders Queue (' + state.adminOrders.length + ")</h4>" +
+    (state.adminOrders.length === 0
+      ? '<small class="aqua-order-hint">No customer orders submitted yet.</small>'
+      : '<div class="aqua-orders-list">' +
+      state.adminOrders
+        .map(
+          (o) =>
+            '<div class="aqua-order-card is-admin-row">' +
+            '<div class="aqua-order-card-top">' +
+            '<div><strong class="aqua-order-num">' + esc(o.orderNumber || o.orderId) + " · " + esc(o.customerName) + "</strong>" +
+            "<small>" + esc(o.customerEmail) + (o.customerPhone ? " · " + esc(o.customerPhone) : "") + " · <b>" + esc(fmtLKR(Number(o.totalLkr) || 0)) + "</b></small></div>" +
+            '<button type="button" class="aqua-mini-btn is-inv" data-print-admin-order="' + esc(o.id) + '"><span class="material-symbols-outlined">receipt_long</span><span>Invoice</span></button>' +
+            "</div>" +
+            '<div class="aqua-admin-order-controls">' +
+            '<select data-admin-status="' + esc(o.id) + '">' +
+            LIMITS.validStatuses
+              .map(
+                (st) =>
+                  '<option value="' + st + '"' + (o.status === st ? " selected" : "") + ">" + esc(STATUS_LABELS[st] || st) + "</option>"
+              )
+              .join("") +
+            "</select>" +
+            '<input type="text" maxlength="240" data-admin-note="' + esc(o.id) + '" value="' + esc(o.statusNote || "") + '" placeholder="Bench-test / courier note..." />' +
+            '<button type="button" class="aqua-mini-btn is-order" data-admin-save-order="' + esc(o.id) + '">Update</button>' +
+            "</div>" +
+            "</div>"
+        )
+        .join("") +
+      "</div>") +
+    "</div></div>";
 
   const activeBody =
     tab === "profile"
@@ -3236,13 +3283,13 @@ function renderModalContent() {
   const verifyBannerHtml =
     !state.user.emailVerified && detectUserProvider(state.user) === "password"
       ? '<div class="aqua-verify-banner" role="status">' +
-        '<span class="material-symbols-outlined">mark_email_unread</span>' +
-        '<div><strong>Verify your email address</strong><small>Check your inbox to verify ' + esc(email) + ".</small></div>" +
-        '<div class="aqua-verify-actions">' +
-        '<button type="button" class="aqua-mini-btn" id="aqua-resend-verify"' + (state.busy ? " disabled" : "") + ">Resend</button>" +
-        '<button type="button" class="aqua-mini-btn is-inv" id="aqua-refresh-verify"' + (state.busy ? " disabled" : "") + ">Refresh</button>" +
-        "</div>" +
-        "</div>"
+      '<span class="material-symbols-outlined">mark_email_unread</span>' +
+      '<div><strong>Verify your email address</strong><small>Check your inbox to verify ' + esc(email) + ".</small></div>" +
+      '<div class="aqua-verify-actions">' +
+      '<button type="button" class="aqua-mini-btn" id="aqua-resend-verify"' + (state.busy ? " disabled" : "") + ">Resend</button>" +
+      '<button type="button" class="aqua-mini-btn is-inv" id="aqua-refresh-verify"' + (state.busy ? " disabled" : "") + ">Refresh</button>" +
+      "</div>" +
+      "</div>"
       : "";
 
   host.innerHTML =
@@ -3272,7 +3319,7 @@ function renderModalContent() {
     '<span class="material-symbols-outlined">badge</span><span>Profile</span></button>' +
     (admin
       ? '<button type="button" role="tab" aria-selected="' + (tab === "admin" ? "true" : "false") + '" class="aqua-mode-tab' + (tab === "admin" ? " active" : "") + '" data-portal-tab="admin">' +
-        '<span class="material-symbols-outlined">admin_panel_settings</span><span>Admin</span></button>'
+      '<span class="material-symbols-outlined">admin_panel_settings</span><span>Admin</span></button>'
       : "") +
     "</div>" +
     feedbackHtml +
@@ -3762,29 +3809,29 @@ function renderTrackModal() {
   const recentOrdersHtml =
     state.user && state.orders.length > 0
       ? '<div class="aqua-track-recent">' +
-        '<span class="aqua-track-recent-label">Your recent orders</span>' +
-        '<div class="aqua-track-recent-list">' +
-        state.orders
-          .slice(0, 4)
-          .map((o) => {
-            const num = o.orderNumber || o.orderId;
-            const active = state.trackQuery === String(num).toUpperCase();
-            return (
-              '<button type="button" class="aqua-track-recent-btn' +
-              (active ? " is-active" : "") +
-              '" data-track-pick="' +
-              esc(num) +
-              '">' +
-              '<span class="aqua-track-mono">' + esc(num) + "</span>" +
-              '<span class="aqua-track-recent-stage">' +
-              esc(normalizeTrackingStageLabel(o.status || "received", o.fulfillment)) +
-              "</span>" +
-              "</button>"
-            );
-          })
-          .join("") +
-        "</div>" +
-        "</div>"
+      '<span class="aqua-track-recent-label">Your recent orders</span>' +
+      '<div class="aqua-track-recent-list">' +
+      state.orders
+        .slice(0, 4)
+        .map((o) => {
+          const num = o.orderNumber || o.orderId;
+          const active = state.trackQuery === String(num).toUpperCase();
+          return (
+            '<button type="button" class="aqua-track-recent-btn' +
+            (active ? " is-active" : "") +
+            '" data-track-pick="' +
+            esc(num) +
+            '">' +
+            '<span class="aqua-track-mono">' + esc(num) + "</span>" +
+            '<span class="aqua-track-recent-stage">' +
+            esc(normalizeTrackingStageLabel(o.status || "received", o.fulfillment)) +
+            "</span>" +
+            "</button>"
+          );
+        })
+        .join("") +
+      "</div>" +
+      "</div>"
       : "";
 
   let bodyHtml = "";
@@ -3852,9 +3899,9 @@ function renderTrackModal() {
       "</div>" +
       (r.statusNote
         ? '<div class="aqua-track-note">' +
-          '<span class="material-symbols-outlined">biotech</span>' +
-          "<div><strong>Workshop Note</strong><p>" + esc(r.statusNote) + "</p></div>" +
-          "</div>"
+        '<span class="material-symbols-outlined">biotech</span>' +
+        "<div><strong>Workshop Note</strong><p>" + esc(r.statusNote) + "</p></div>" +
+        "</div>"
         : "") +
       renderTrackTimeline(r.status || "received", r.fulfillment) +
       '<div class="aqua-track-result-actions">' +
@@ -4032,7 +4079,7 @@ document.addEventListener("keydown", (e) => {
 });
 
 // Boot Firebase SDK & Auth state subscription asynchronously
-ensureFirebase().catch(() => {});
+ensureFirebase().catch(() => { });
 
 // Expose global APIs for storefront & Admin Console
 window.AquaAuth = {
@@ -4065,7 +4112,7 @@ function initAquaAuthUI() {
     if (trackCode && trackCode.trim()) {
       openTrackOrderModal(trackCode.trim());
     }
-  } catch (_) {}
+  } catch (_) { }
 }
 
 if (document.readyState === "loading") {

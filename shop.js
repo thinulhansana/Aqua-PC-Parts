@@ -474,11 +474,36 @@
     };
   }
 
+  function cleanSpecText(str) {
+    return String(str == null ? "" : str)
+      .replace(/(\s*:\s*)+$/g, "")
+      .replace(/\s+/g, " ")
+      .trim();
+  }
+
+  function looksLikeSpecValue(str) {
+    if (!str) return false;
+    if (str.includes(":")) return true;
+    return /^\d|\d+\s*(GHz|MHz|THz|GB|MB|TB|Hz|W|V|mm|cm|in|["″′])\b|["″′]|^(NVIDIA|AMD|Intel|MSI|ASUS|Gigabyte|Corsair|Dell|HP|Lenovo|Apple|GeForce|Radeon|Ryzen|Core\s+i\d|Core\s+Ultra)\b|\b(RTX|GTX|RX\s*\d|LED-backlit|TFT\s+active|NVMe|PCIe\s*Gen|DDR\d|USB\s*\d|80\s*PLUS)\b/i.test(
+      str
+    );
+  }
+
   function deriveBullets(it, secLabel, subName, isNew, warranty) {
     const bullets = [];
     if (Array.isArray(it.details) && it.details.length) {
-      for (const line of it.details) {
-        if (bullets.length >= 3) break;
+      const cleanLines = it.details.map(cleanSpecText).filter(Boolean);
+      for (let i = 0; i < cleanLines.length && bullets.length < 3; i++) {
+        const line = cleanLines[i];
+        if (!line.includes(":") && !looksLikeSpecValue(line)) {
+          const next = cleanLines[i + 1];
+          if (next && !next.includes(":") && looksLikeSpecValue(next)) {
+            const combined = line + ": " + next;
+            bullets.push(combined.length > 72 ? combined.slice(0, 69) + "..." : combined);
+            i += 1;
+          }
+          continue;
+        }
         bullets.push(line.length > 72 ? line.slice(0, 69) + "..." : line);
       }
     }
@@ -486,8 +511,17 @@
       bullets.push("Brand: " + it.brand);
     }
     const name = it.name || "";
-    if (it.specs && bullets.length < 3 && !bullets.some((b) => it.specs.startsWith(b.slice(0, 12)))) {
-      bullets.push(it.specs.length > 72 ? it.specs.slice(0, 69) + "..." : it.specs);
+    const cleanSpecs = cleanSpecText(it.specs)
+      .split(/\s*·\s*/)
+      .map(cleanSpecText)
+      .filter((part) => part && (part.includes(":") || looksLikeSpecValue(part)))
+      .join(" · ");
+    if (
+      cleanSpecs &&
+      bullets.length < 3 &&
+      !bullets.some((b) => cleanSpecs.startsWith(b.slice(0, 12)))
+    ) {
+      bullets.push(cleanSpecs.length > 72 ? cleanSpecs.slice(0, 69) + "..." : cleanSpecs);
     }
     if (subName && bullets.length < 3) bullets.push(subName);
 
@@ -1192,7 +1226,7 @@
       "</div>" +
       '<div class="ne-card-img-wrap" data-qv="' + esc(p.id) + '">' +
       (p.price != null && p.slBest ? '<span class="ne-save-tag is-slbest">★ SL BEST</span>' : "") +
-      '<img referrerpolicy="no-referrer" src="' + esc(p.img) + '" onerror="this.onerror=null;this.src=\'' + esc(p.fallbackImg) + '\'" alt="' + esc(p.name) + '" loading="lazy" />' +
+      '<img referrerpolicy="no-referrer" width="220" height="220" src="' + esc(p.img) + '" onerror="this.onerror=null;this.src=\'' + esc(p.fallbackImg) + '\'" alt="' + esc(p.name) + '" loading="lazy" />' +
       '<button type="button" class="ne-qv-trigger" data-qv="' + esc(p.id) + '">Quick View</button>' +
       "</div>" +
       '<div class="ne-card-body">' +
@@ -1438,7 +1472,7 @@
       "</div>" +
       '<div class="ne-shocker-img" data-qv="' +
       esc(p.id) +
-      '"><img referrerpolicy="no-referrer" src="' +
+      '"><img referrerpolicy="no-referrer" width="180" height="114" src="' +
       esc(p.img) +
       '" onerror="this.onerror=null;this.src=\'' +
       esc(p.fallbackImg) +
@@ -2996,7 +3030,7 @@ th{background:#071138;color:#ffc000}
             encodeURIComponent(c.id) +
             '" class="ne-cat-tile" data-cat="' +
             esc(c.id) +
-            '"><div class="ne-cat-tile-img"><img src="' +
+            '"><div class="ne-cat-tile-img"><img width="66" height="66" src="' +
             esc(c.iconImg) +
             '" alt="' +
             esc(c.label) +

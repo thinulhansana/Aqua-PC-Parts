@@ -4,7 +4,7 @@ export async function onRequestGet(context) {
     env.RECAPTCHA_ENTERPRISE_SITE_KEY ||
       env.VITE_RECAPTCHA_ENTERPRISE_SITE_KEY ||
       env.RECAPTCHA_SITE_KEY ||
-      ""
+      "6LeSXjIuAAAAAMpqoXPJBXXsdrVsKOBR38GLAWdi"
   ).trim();
 
   return new Response(
@@ -22,3 +22,4 @@ export async function onRequestGet(context) {
     }
   );
 }
+

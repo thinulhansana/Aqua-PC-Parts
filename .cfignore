@@ -1,5 +1,10 @@
 .git/
+.firebase/
+.firebaserc
 __test/
 .temp/
+firebase.json
+firebase-blueprint.json
+firestore.rules
+firestore.indexes.json
 *.log
-

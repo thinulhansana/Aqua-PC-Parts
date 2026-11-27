@@ -33,7 +33,7 @@
       banner.hidden = true;
       banner.innerHTML =
         '<span class="material-symbols-outlined" aria-hidden="true">cloud_off</span>' +
-        '<span>Offline Mode — Showing cached Aqua PC Parts catalog. Live stock &amp; orders will sync when you reconnect.</span>';
+        '<span>Offline Mode &mdash; Showing cached Aqua PC Parts catalog. Live stock &amp; orders will sync when you reconnect.</span>';
       document.body.appendChild(banner);
     }
     const sync = () => {

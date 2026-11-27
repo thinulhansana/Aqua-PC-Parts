@@ -1,4 +1,4 @@
-const CACHE_VERSION = "aqua-pc-parts-v9";
+const CACHE_VERSION = "aqua-pc-parts-v10";
 const SHELL_ASSETS = [
   "/",
   "/index.html",
@@ -59,7 +59,7 @@ self.addEventListener("install", (event) => {
     caches
       .open(CACHE_VERSION)
       .then((cache) => cache.addAll(SHELL_ASSETS.map((url) => new Request(url, { cache: "reload" }))))
-      .catch(() => {})
+      .catch(() => { })
       .then(() => self.skipWaiting())
   );
 });
